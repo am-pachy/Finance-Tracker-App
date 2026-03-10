@@ -55,6 +55,7 @@ type AppData = {
   stipendioMedio: number;
   giornoStipendio: number;
   obiettivo: number;
+  dataObiettivo: string;
   sogliaSicurezza: number;
   people: {
     first: string;
@@ -93,6 +94,9 @@ const translations = {
     forecast: "Previsione",
     balance: "Saldo attuale",
     goal: "Obiettivo",
+    targetDate: "Data obiettivo",
+    targetEstimate: "Stima alla data obiettivo",
+    monthsLeft: "Mesi rimanenti",
     progressGoal: "Progresso verso obiettivo",
     currentMonth: "Mese corrente",
     monthlyExpenses: "Spese del mese",
@@ -158,7 +162,6 @@ const translations = {
     helpMini1: "Inserisci saldo iniziale, stipendio e obiettivo.",
     helpMini2: "Aggiungi spese rapide scrivendo ad esempio: pizza 18.",
     helpMini3: "Aggiungi viaggi e controlla la previsione del saldo.",
-    sharedTitle: "Suddivisione spese",
     addSharedExpense: "Aggiungi spesa condivisa",
     paidBy: "Pagato da",
     splitWith: "Diviso con",
@@ -167,11 +170,17 @@ const translations = {
     netSharedBalance: "Saldo netto",
     sharedRecent: "Spese condivise recenti",
     owesTo: "deve a",
-    personOne: "Persona 1",
-    personTwo: "Persona 2",
     personOneName: "Nome persona 1",
     personTwoName: "Nome persona 2",
     shouldReceive: "deve ricevere",
+    monthAlertTitle: "Situazione di fine mese",
+    monthAlertOk: "Sei in linea per chiudere il mese.",
+    monthAlertWarn: "Attenzione: potresti chiudere il mese vicino alla soglia di sicurezza.",
+    monthAlertRisk: "Rischio: potresti chiudere il mese sotto la soglia di sicurezza.",
+    goalAlertTitle: "Situazione obiettivo",
+    goalAlertOk: "Sei in linea con il tuo obiettivo.",
+    goalAlertWarn: "Non sei in linea con l'obiettivo alla data scelta.",
+    gapToGoal: "Gap all'obiettivo",
   },
   en: {
     appName: "Finance",
@@ -183,6 +192,9 @@ const translations = {
     forecast: "Forecast",
     balance: "Current balance",
     goal: "Goal",
+    targetDate: "Target date",
+    targetEstimate: "Estimate at target date",
+    monthsLeft: "Months left",
     progressGoal: "Progress to goal",
     currentMonth: "Current month",
     monthlyExpenses: "Monthly expenses",
@@ -248,7 +260,6 @@ const translations = {
     helpMini1: "Enter starting balance, average salary and savings goal.",
     helpMini2: "Add quick expenses by typing for example: pizza 18.",
     helpMini3: "Add trips and check the future balance forecast.",
-    sharedTitle: "Shared expenses",
     addSharedExpense: "Add shared expense",
     paidBy: "Paid by",
     splitWith: "Split with",
@@ -257,19 +268,31 @@ const translations = {
     netSharedBalance: "Net balance",
     sharedRecent: "Recent shared expenses",
     owesTo: "owes",
-    personOne: "Person 1",
-    personTwo: "Person 2",
     personOneName: "Person 1 name",
     personTwoName: "Person 2 name",
     shouldReceive: "should receive",
+    monthAlertTitle: "End of month status",
+    monthAlertOk: "You are on track to close the month well.",
+    monthAlertWarn: "Warning: you may close the month near the safety threshold.",
+    monthAlertRisk: "Risk: you may close the month below the safety threshold.",
+    goalAlertTitle: "Goal status",
+    goalAlertOk: "You are on track for your goal.",
+    goalAlertWarn: "You are not on track for the selected target date.",
+    gapToGoal: "Gap to goal",
   },
 } as const;
+
+function endOfCurrentMonthISO() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+}
 
 const initialData: AppData = {
   saldoAttuale: 0,
   stipendioMedio: 0,
   giornoStipendio: 10,
   obiettivo: 6000,
+  dataObiettivo: endOfCurrentMonthISO(),
   sogliaSicurezza: 1000,
   people: {
     first: "Persona 1",
@@ -312,6 +335,15 @@ function formatDate(dateString: string, lang: Lang): string {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function monthsBetweenInclusive(start: Date, end: Date) {
+  const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  const diff =
+    (endMonth.getFullYear() - startMonth.getFullYear()) * 12 +
+    (endMonth.getMonth() - startMonth.getMonth());
+  return Math.max(1, diff + 1);
 }
 
 function detectCategory(text: string): string {
@@ -378,6 +410,7 @@ function App() {
     stipendioMedio: "",
     giornoStipendio: "10",
     obiettivo: "6000",
+    dataObiettivo: "",
     firstPersonName: "",
     secondPersonName: "",
   });
@@ -434,6 +467,7 @@ function App() {
       stipendioMedio: String(data.stipendioMedio || ""),
       giornoStipendio: String(data.giornoStipendio || 10),
       obiettivo: String(data.obiettivo || 6000),
+      dataObiettivo: data.dataObiettivo || endOfCurrentMonthISO(),
       firstPersonName: data.people.first,
       secondPersonName: data.people.second,
     });
@@ -442,6 +476,7 @@ function App() {
     data.stipendioMedio,
     data.giornoStipendio,
     data.obiettivo,
+    data.dataObiettivo,
     data.people.first,
     data.people.second,
   ]);
@@ -475,8 +510,43 @@ function App() {
     return data.saldoAttuale + totalIncome - totalExpenses + totalRefunds - totalTrips;
   }, [data.saldoAttuale, totalIncome, totalExpenses, totalRefunds, totalTrips]);
 
-  const gap = Math.max(0, data.obiettivo - netEstimatedBalance);
-  const monthlySavingNeeded = gap / 6;
+  const targetDate = useMemo(() => {
+    const d = new Date(data.dataObiettivo || endOfCurrentMonthISO());
+    return Number.isNaN(d.getTime()) ? new Date(endOfCurrentMonthISO()) : d;
+  }, [data.dataObiettivo]);
+
+  const monthsLeft = useMemo(() => monthsBetweenInclusive(new Date(), targetDate), [targetDate]);
+
+  const targetForecastFinal = useMemo(() => {
+    const targetMonthKey = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}`;
+
+    const movementExpensesUntilTarget = data.movimenti
+      .filter((m) => m.tipo === "spesa" && getMonthKey(m.data) <= targetMonthKey)
+      .reduce((sum, m) => sum + m.importo, 0);
+
+    const movementIncomeUntilTarget = data.movimenti
+      .filter((m) => m.tipo === "entrata" && getMonthKey(m.data) <= targetMonthKey)
+      .reduce((sum, m) => sum + m.importo, 0);
+
+    const tripExpensesUntilTarget = data.viaggi
+      .filter((v) => getMonthKey(v.dataAddebito) <= targetMonthKey)
+      .reduce((sum, v) => sum + v.importo, 0);
+
+    const subscriptionsUntilTarget = totalSubscriptions * monthsLeft;
+
+    return (
+      data.saldoAttuale +
+      data.stipendioMedio * monthsLeft +
+      movementIncomeUntilTarget +
+      totalRefunds -
+      movementExpensesUntilTarget -
+      tripExpensesUntilTarget -
+      subscriptionsUntilTarget
+    );
+  }, [data, monthsLeft, targetDate, totalRefunds, totalSubscriptions]);
+
+  const gap = Math.max(0, data.obiettivo - targetForecastFinal);
+  const monthlySavingNeeded = gap / Math.max(1, monthsLeft);
 
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
@@ -561,7 +631,7 @@ function App() {
 
   const progress = Math.min(
     100,
-    Math.max(0, data.obiettivo > 0 ? (data.saldoAttuale / data.obiettivo) * 100 : 0)
+    Math.max(0, data.obiettivo > 0 ? (targetForecastFinal / data.obiettivo) * 100 : 0)
   );
 
   const upcomingTrips = useMemo(
@@ -596,6 +666,24 @@ function App() {
       net,
     };
   }, [data.sharedExpenses]);
+
+  const monthEndForecast = useMemo(() => {
+    const row = forecastRows.find((r) => r.key === currentMonthKey);
+    return row?.final ?? data.saldoAttuale;
+  }, [forecastRows, currentMonthKey, data.saldoAttuale]);
+
+  const daysToMonthEnd = useMemo(() => {
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, diff);
+  }, []);
+
+  const showMonthAlert = daysToMonthEnd <= 7;
+
+  const monthAlertTone = monthEndForecast < data.sogliaSicurezza ? "risk" : monthEndForecast < data.sogliaSicurezza + 300 ? "warn" : "ok";
+
+  const goalAlertTone = targetForecastFinal >= data.obiettivo ? "ok" : "warn";
 
   function parseQuickExpense(text: string): { descrizione: string; importo: number } | null {
     const cleaned = text.trim();
@@ -760,6 +848,7 @@ function App() {
       stipendioMedio: Number(settingsDraft.stipendioMedio || 0),
       giornoStipendio: Number(settingsDraft.giornoStipendio || 10),
       obiettivo: Number(settingsDraft.obiettivo || 6000),
+      dataObiettivo: settingsDraft.dataObiettivo || endOfCurrentMonthISO(),
       people: {
         first: settingsDraft.firstPersonName.trim() || (lang === "it" ? "Persona 1" : "Person 1"),
         second: settingsDraft.secondPersonName.trim() || (lang === "it" ? "Persona 2" : "Person 2"),
@@ -869,6 +958,17 @@ function App() {
                   />
                 </Field>
 
+                <Field label={tr.targetDate}>
+                  <input
+                    className="input"
+                    type="date"
+                    value={settingsDraft.dataObiettivo}
+                    onChange={(e) =>
+                      setSettingsDraft((prev) => ({ ...prev, dataObiettivo: e.target.value }))
+                    }
+                  />
+                </Field>
+
                 <Field label={tr.personOneName}>
                   <input
                     className="input"
@@ -910,11 +1010,38 @@ function App() {
 
         {tab === "dashboard" && (
           <div className="stack">
+            {showMonthAlert && (
+              <div className={`alert-card alert-${monthAlertTone}`}>
+                <div className="alert-title">{tr.monthAlertTitle}</div>
+                <div className="alert-text">
+                  {monthAlertTone === "risk"
+                    ? tr.monthAlertRisk
+                    : monthAlertTone === "warn"
+                    ? tr.monthAlertWarn
+                    : tr.monthAlertOk}
+                </div>
+              </div>
+            )}
+
+            <div className={`alert-card alert-${goalAlertTone}`}>
+              <div className="alert-title">{tr.goalAlertTitle}</div>
+              <div className="alert-text">
+                {goalAlertTone === "ok" ? tr.goalAlertOk : tr.goalAlertWarn}
+              </div>
+            </div>
+
             <div className="grid grid-4">
               <StatCard title={tr.balance} value={formatEuro(data.saldoAttuale)} />
               <StatCard title={tr.goal} value={formatEuro(data.obiettivo)} />
-              <StatCard title={tr.expectedRefunds} value={formatEuro(totalRefunds)} />
+              <StatCard title={tr.targetEstimate} value={formatEuro(targetForecastFinal)} />
               <StatCard title={tr.monthlySaving} value={formatEuro(monthlySavingNeeded)} />
+            </div>
+
+            <div className="grid grid-4">
+              <StatCard title={tr.targetDate} value={formatDate(data.dataObiettivo, lang)} />
+              <StatCard title={tr.monthsLeft} value={String(monthsLeft)} />
+              <StatCard title={tr.expectedRefunds} value={formatEuro(totalRefunds)} />
+              <StatCard title={tr.gapToGoal} value={formatEuro(gap)} />
             </div>
 
             <div className="grid grid-3">
@@ -1532,7 +1659,7 @@ function ForecastChart({ rows }: { rows: ForecastRow[] }) {
           </g>
         ))}
 
-        <polyline fill="none" points={polylinePoints} className="chart-line" />
+        <polyline points={polylinePoints} className="chart-line" />
 
         {points.map((p) => (
           <g key={`${p.label}-dot`}>
@@ -1592,4 +1719,4 @@ function CategoryChart({
   );
 }
 
-export default App; => e adesso?
+export default App;
