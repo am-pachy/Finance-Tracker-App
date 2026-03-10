@@ -128,7 +128,7 @@ const translations = {
     currentMonthOut: "Uscite del mese",
     quickHint: "Es: pizza 18",
     noData: "Nessun dato",
-    demoTitle: "Configurazione iniziale",
+    settings: "Impostazioni",
     currentBalance: "Saldo iniziale",
     targetGoal: "Obiettivo risparmio",
     avgSalary: "Stipendio medio",
@@ -136,6 +136,10 @@ const translations = {
     saveSettings: "Salva impostazioni",
     expensesByCategory: "Spese per categoria",
     noExpenseData: "Nessuna spesa da mostrare",
+    helpMiniTitle: "Come usare l'app",
+    helpMini1: "Inserisci saldo iniziale, stipendio e obiettivo.",
+    helpMini2: "Aggiungi spese rapide scrivendo ad esempio: pizza 18.",
+    helpMini3: "Aggiungi viaggi e controlla la previsione del saldo.",
   },
   en: {
     appName: "Finance",
@@ -199,7 +203,7 @@ const translations = {
     currentMonthOut: "Current month outflows",
     quickHint: "Ex: pizza 18",
     noData: "No data",
-    demoTitle: "Initial setup",
+    settings: "Settings",
     currentBalance: "Starting balance",
     targetGoal: "Savings goal",
     avgSalary: "Average salary",
@@ -207,6 +211,10 @@ const translations = {
     saveSettings: "Save settings",
     expensesByCategory: "Expenses by category",
     noExpenseData: "No expenses to show",
+    helpMiniTitle: "How to use the app",
+    helpMini1: "Enter starting balance, average salary and savings goal.",
+    helpMini2: "Add quick expenses by typing for example: pizza 18.",
+    helpMini3: "Add trips and check the future balance forecast.",
   },
 } as const;
 
@@ -303,6 +311,7 @@ function App() {
 
   const [theme, setTheme] = useState<Theme>(detectTheme);
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [showSettings, setShowSettings] = useState(false);
 
   const [data, setData] = useState<AppData>(() => {
     const saved = localStorage.getItem("fin-data-ts");
@@ -623,6 +632,9 @@ function App() {
           </div>
 
           <div className="topbar-actions">
+            <button className="chip" onClick={() => setShowSettings((s) => !s)}>
+              ⚙️
+            </button>
             <button
               className={`chip ${lang === "it" ? "chip-active" : ""}`}
               onClick={() => setLang("it")}
@@ -647,66 +659,78 @@ function App() {
           </div>
         </div>
 
+        {showSettings && (
+          <Card className="settings-card">
+            <h2 className="section-title">{tr.settings}</h2>
+
+            <form className="form-grid-4" onSubmit={saveSettings}>
+              <Field label={tr.currentBalance}>
+                <input
+                  className="input"
+                  type="number"
+                  step="0.01"
+                  value={settingsDraft.saldoAttuale}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({ ...prev, saldoAttuale: e.target.value }))
+                  }
+                />
+              </Field>
+
+              <Field label={tr.avgSalary}>
+                <input
+                  className="input"
+                  type="number"
+                  step="0.01"
+                  value={settingsDraft.stipendioMedio}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({ ...prev, stipendioMedio: e.target.value }))
+                  }
+                />
+              </Field>
+
+              <Field label={tr.salaryDay}>
+                <input
+                  className="input"
+                  type="number"
+                  value={settingsDraft.giornoStipendio}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({ ...prev, giornoStipendio: e.target.value }))
+                  }
+                />
+              </Field>
+
+              <Field label={tr.targetGoal}>
+                <input
+                  className="input"
+                  type="number"
+                  step="0.01"
+                  value={settingsDraft.obiettivo}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
+                  }
+                />
+              </Field>
+
+              <div className="form-grid-full">
+                <button className="primary-btn" type="submit">
+                  {tr.saveSettings}
+                </button>
+              </div>
+            </form>
+
+            <div className="settings-help">
+              <h3 className="settings-help-title">{tr.helpMiniTitle}</h3>
+              <ul className="settings-help-list">
+                <li>{tr.helpMini1}</li>
+                <li>{tr.helpMini2}</li>
+                <li>{tr.helpMini3}</li>
+              </ul>
+            </div>
+          </Card>
+        )}
+
         {tab === "dashboard" && (
           <div className="stack">
-            <Card>
-              <h2 className="section-title">{tr.demoTitle}</h2>
-              <form className="form-grid-4" onSubmit={saveSettings}>
-                <Field label={tr.currentBalance}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={settingsDraft.saldoAttuale}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, saldoAttuale: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.avgSalary}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={settingsDraft.stipendioMedio}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, stipendioMedio: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.salaryDay}>
-                  <input
-                    className="input"
-                    type="number"
-                    value={settingsDraft.giornoStipendio}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, giornoStipendio: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.targetGoal}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={settingsDraft.obiettivo}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <div className="form-grid-full">
-                  <button className="primary-btn" type="submit">
-                    {tr.saveSettings}
-                  </button>
-                </div>
-              </form>
-            </Card>
-
             <div className="grid grid-4">
               <StatCard title={tr.balance} value={formatEuro(data.saldoAttuale)} />
               <StatCard title={tr.goal} value={formatEuro(data.obiettivo)} />
@@ -817,10 +841,7 @@ function App() {
 
             <Card>
               <h2 className="section-title">{tr.expensesByCategory}</h2>
-              <CategoryChart
-                movements={data.movimenti}
-                emptyText={tr.noExpenseData}
-              />
+              <CategoryChart movements={data.movimenti} emptyText={tr.noExpenseData} />
             </Card>
           </div>
         )}
