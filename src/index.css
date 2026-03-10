@@ -167,6 +167,30 @@ select {
   box-shadow: var(--shadow);
 }
 
+.settings-card {
+  margin-bottom: 24px;
+}
+
+.settings-help {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-help-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.settings-help-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+
 .section-title {
   margin: 0 0 16px;
   font-size: 22px;
