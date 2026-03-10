@@ -320,11 +320,6 @@ select {
   gap: 14px;
 }
 
-.quick-form {
-  display: flex;
-  gap: 10px;
-}
-
 .field-label {
   display: block;
   margin-bottom: 6px;
@@ -399,6 +394,38 @@ select {
   font-weight: 700;
 }
 
+.category-chart {
+  display: grid;
+  gap: 14px;
+}
+
+.category-row {
+  display: grid;
+  gap: 8px;
+}
+
+.category-label-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.category-bar-track {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--bg-soft-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.category-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -468,10 +495,6 @@ select {
 @media (max-width: 640px) {
   .page-title {
     font-size: 28px;
-  }
-
-  .quick-form {
-    flex-direction: column;
   }
 
   .app-container {
