@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 
 type Lang = "it" | "en";
 type Theme = "light" | "dark";
-type Tab = "dashboard" | "movements" | "trips" | "forecast";
+type Tab = "dashboard" | "movements" | "trips" | "shared" | "forecast";
 type MovementType = "spesa" | "entrata";
+type Person = "Anna" | "Mick";
 
 type Movement = {
   id: number;
@@ -38,6 +39,17 @@ type Subscription = {
   importo: number;
 };
 
+type SharedExpense = {
+  id: number;
+  data: string;
+  descrizione: string;
+  importo: number;
+  pagatoDa: Person;
+  divisoCon: Person;
+  quotaPercentuale: number;
+  nota: string;
+};
+
 type AppData = {
   saldoAttuale: number;
   stipendioMedio: number;
@@ -48,6 +60,7 @@ type AppData = {
   movimenti: Movement[];
   rimborsi: Refund[];
   viaggi: Trip[];
+  sharedExpenses: SharedExpense[];
 };
 
 type ForecastRow = {
@@ -72,6 +85,7 @@ const translations = {
     dashboard: "Dashboard",
     movements: "Movimenti",
     trips: "Viaggi",
+    shared: "Condivisioni",
     forecast: "Previsione",
     balance: "Saldo attuale",
     goal: "Obiettivo",
@@ -140,6 +154,17 @@ const translations = {
     helpMini1: "Inserisci saldo iniziale, stipendio e obiettivo.",
     helpMini2: "Aggiungi spese rapide scrivendo ad esempio: pizza 18.",
     helpMini3: "Aggiungi viaggi e controlla la previsione del saldo.",
+    sharedTitle: "Suddivisione spese",
+    addSharedExpense: "Aggiungi spesa condivisa",
+    paidBy: "Pagato da",
+    splitWith: "Diviso con",
+    splitPercent: "Quota %",
+    sharedSummary: "Riepilogo condivise",
+    annaShouldReceive: "Anna deve ricevere",
+    mickShouldReceive: "Mick deve ricevere",
+    netSharedBalance: "Saldo netto",
+    sharedRecent: "Spese condivise recenti",
+    owesTo: "deve a",
   },
   en: {
     appName: "Finance",
@@ -147,6 +172,7 @@ const translations = {
     dashboard: "Dashboard",
     movements: "Transactions",
     trips: "Trips",
+    shared: "Shared",
     forecast: "Forecast",
     balance: "Current balance",
     goal: "Goal",
@@ -215,6 +241,17 @@ const translations = {
     helpMini1: "Enter starting balance, average salary and savings goal.",
     helpMini2: "Add quick expenses by typing for example: pizza 18.",
     helpMini3: "Add trips and check the future balance forecast.",
+    sharedTitle: "Shared expenses",
+    addSharedExpense: "Add shared expense",
+    paidBy: "Paid by",
+    splitWith: "Split with",
+    splitPercent: "Share %",
+    sharedSummary: "Shared summary",
+    annaShouldReceive: "Anna should receive",
+    mickShouldReceive: "Mick should receive",
+    netSharedBalance: "Net balance",
+    sharedRecent: "Recent shared expenses",
+    owesTo: "owes",
   },
 } as const;
 
@@ -228,6 +265,7 @@ const initialData: AppData = {
   movimenti: [],
   rimborsi: [],
   viaggi: [],
+  sharedExpenses: [],
 };
 
 function detectLang(): Lang {
@@ -343,6 +381,16 @@ function App() {
     voce: "",
     importo: "",
     dataAddebito: "",
+  });
+
+  const [newSharedExpense, setNewSharedExpense] = useState({
+    data: new Date().toISOString().slice(0, 10),
+    descrizione: "",
+    importo: "",
+    pagatoDa: "Anna" as Person,
+    divisoCon: "Mick" as Person,
+    quotaPercentuale: "50",
+    nota: "",
   });
 
   const tr = translations[lang];
@@ -495,6 +543,31 @@ function App() {
     [data.viaggi]
   );
 
+  const sharedSummary = useMemo(() => {
+    let annaShouldReceive = 0;
+    let mickShouldReceive = 0;
+
+    data.sharedExpenses.forEach((item) => {
+      const quota = (item.importo * item.quotaPercentuale) / 100;
+
+      if (item.pagatoDa === "Anna" && item.divisoCon === "Mick") {
+        annaShouldReceive += quota;
+      }
+
+      if (item.pagatoDa === "Mick" && item.divisoCon === "Anna") {
+        mickShouldReceive += quota;
+      }
+    });
+
+    const net = annaShouldReceive - mickShouldReceive;
+
+    return {
+      annaShouldReceive,
+      mickShouldReceive,
+      net,
+    };
+  }, [data.sharedExpenses]);
+
   function parseQuickExpense(text: string): { descrizione: string; importo: number } | null {
     const cleaned = text.trim();
     if (!cleaned) return null;
@@ -597,6 +670,38 @@ function App() {
       voce: "",
       importo: "",
       dataAddebito: "",
+    });
+  }
+
+  function addSharedExpense(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newSharedExpense.descrizione || !newSharedExpense.importo) return;
+    if (newSharedExpense.pagatoDa === newSharedExpense.divisoCon) return;
+
+    const sharedExpense: SharedExpense = {
+      id: Date.now(),
+      data: newSharedExpense.data,
+      descrizione: newSharedExpense.descrizione,
+      importo: Number(newSharedExpense.importo),
+      pagatoDa: newSharedExpense.pagatoDa,
+      divisoCon: newSharedExpense.divisoCon,
+      quotaPercentuale: Number(newSharedExpense.quotaPercentuale || 50),
+      nota: newSharedExpense.nota,
+    };
+
+    setData((prev) => ({
+      ...prev,
+      sharedExpenses: [sharedExpense, ...prev.sharedExpenses],
+    }));
+
+    setNewSharedExpense({
+      data: new Date().toISOString().slice(0, 10),
+      descrizione: "",
+      importo: "",
+      pagatoDa: "Anna",
+      divisoCon: "Mick",
+      quotaPercentuale: "50",
+      nota: "",
     });
   }
 
@@ -1034,6 +1139,170 @@ function App() {
           </div>
         )}
 
+        {tab === "shared" && (
+          <div className="stack">
+            <div className="grid grid-3">
+              <Card>
+                <h2 className="section-title">{tr.addSharedExpense}</h2>
+
+                <form className="form-stack" onSubmit={addSharedExpense}>
+                  <Field label={tr.date}>
+                    <input
+                      className="input"
+                      type="date"
+                      value={newSharedExpense.data}
+                      onChange={(e) =>
+                        setNewSharedExpense((prev) => ({ ...prev, data: e.target.value }))
+                      }
+                    />
+                  </Field>
+
+                  <Field label={tr.description}>
+                    <input
+                      className="input"
+                      value={newSharedExpense.descrizione}
+                      onChange={(e) =>
+                        setNewSharedExpense((prev) => ({ ...prev, descrizione: e.target.value }))
+                      }
+                    />
+                  </Field>
+
+                  <Field label={tr.amount}>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.01"
+                      value={newSharedExpense.importo}
+                      onChange={(e) =>
+                        setNewSharedExpense((prev) => ({ ...prev, importo: e.target.value }))
+                      }
+                    />
+                  </Field>
+
+                  <Field label={tr.paidBy}>
+                    <select
+                      className="input"
+                      value={newSharedExpense.pagatoDa}
+                      onChange={(e) =>
+                        setNewSharedExpense((prev) => ({
+                          ...prev,
+                          pagatoDa: e.target.value as Person,
+                          divisoCon: e.target.value === "Anna" ? "Mick" : "Anna",
+                        }))
+                      }
+                    >
+                      <option value="Anna">Anna</option>
+                      <option value="Mick">Mick</option>
+                    </select>
+                  </Field>
+
+                  <Field label={tr.splitWith}>
+                    <select
+                      className="input"
+                      value={newSharedExpense.divisoCon}
+                      onChange={(e) =>
+                        setNewSharedExpense((prev) => ({
+                          ...prev,
+                          divisoCon: e.target.value as Person,
+                        }))
+                      }
+                    >
+                      <option value="Anna">Anna</option>
+                      <option value="Mick">Mick</option>
+                    </select>
+                  </Field>
+
+                  <Field label={tr.splitPercent}>
+                    <input
+                      className="input"
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={newSharedExpense.quotaPercentuale}
+                      onChange={(e) =>
+                        setNewSharedExpense((prev) => ({
+                          ...prev,
+                          quotaPercentuale: e.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+
+                  <Field label={tr.note}>
+                    <input
+                      className="input"
+                      value={newSharedExpense.nota}
+                      onChange={(e) =>
+                        setNewSharedExpense((prev) => ({ ...prev, nota: e.target.value }))
+                      }
+                      placeholder={tr.optionalNotes}
+                    />
+                  </Field>
+
+                  <button className="primary-btn" type="submit">
+                    {tr.save}
+                  </button>
+                </form>
+              </Card>
+
+              <Card className="span-2">
+                <h2 className="section-title">{tr.sharedSummary}</h2>
+
+                <div className="grid grid-3">
+                  <MiniCard
+                    title={tr.annaShouldReceive}
+                    value={formatEuro(Math.max(0, sharedSummary.net))}
+                  />
+                  <MiniCard
+                    title={tr.mickShouldReceive}
+                    value={formatEuro(Math.max(0, -sharedSummary.net))}
+                  />
+                  <MiniCard
+                    title={tr.netSharedBalance}
+                    value={
+                      sharedSummary.net >= 0
+                        ? `Mick ${tr.owesTo} Anna ${formatEuro(sharedSummary.net)}`
+                        : `Anna ${tr.owesTo} Mick ${formatEuro(Math.abs(sharedSummary.net))}`
+                    }
+                  />
+                </div>
+
+                <div className="top-gap">
+                  <h3 className="settings-help-title">{tr.sharedRecent}</h3>
+                  <div className="list">
+                    {data.sharedExpenses.length === 0 && <div className="muted">{tr.noData}</div>}
+
+                    {data.sharedExpenses.map((item) => {
+                      const quota = (item.importo * item.quotaPercentuale) / 100;
+                      return (
+                        <div key={item.id} className="list-item">
+                          <div>
+                            <div className="item-title">{item.descrizione}</div>
+                            <div className="muted">
+                              {formatDate(item.data, lang)} · {item.pagatoDa} → {item.divisoCon}
+                            </div>
+                            <div className="small-muted">
+                              {tr.splitPercent}: {item.quotaPercentuale}%
+                            </div>
+                            {item.nota ? <div className="small-muted">{item.nota}</div> : null}
+                          </div>
+
+                          <div className="right">
+                            <div className="item-amount">{formatEuro(item.importo)}</div>
+                            <div className="small-muted">
+                              {item.divisoCon} {tr.owesTo} {item.pagatoDa}: {formatEuro(quota)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
         {tab === "forecast" && (
           <div className="stack">
             <div className="grid grid-4">
@@ -1088,11 +1357,12 @@ function App() {
         )}
       </div>
 
-      <nav className="bottom-nav">
+      <nav className="bottom-nav five-cols">
         {[
           ["dashboard", tr.dashboard],
           ["movements", tr.movements],
           ["trips", tr.trips],
+          ["shared", tr.shared],
           ["forecast", tr.forecast],
         ].map(([key, label]) => (
           <button
