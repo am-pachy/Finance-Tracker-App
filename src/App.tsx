@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-type Lang = "it" | "en";
-type Theme = "light" | "dark";
-type Tab = "dashboard" | "movements" | "trips" | "shared" | "forecast";
 type MovementType = "spesa" | "entrata";
-type PersonKey = "first" | "second";
+type RecurrenceType = "una_tantum" | "fissa";
+type Frequency =
+  | ""
+  | "giornaliera"
+  | "mensile"
+  | "trimestrale"
+  | "semestrale"
+  | "annuale";
 
 type Movement = {
   id: number;
@@ -15,14 +19,9 @@ type Movement = {
   importo: number;
   necessaria: boolean;
   nota: string;
-};
-
-type Refund = {
-  id: number;
-  persona: string;
-  motivo: string;
-  importo: number;
-  ricevuto: boolean;
+  ricorrenza: RecurrenceType;
+  periodicita: Frequency;
+  dataFine: string;
 };
 
 type Trip = {
@@ -33,23 +32,6 @@ type Trip = {
   dataAddebito: string;
 };
 
-type Subscription = {
-  id: number;
-  nome: string;
-  importo: number;
-};
-
-type SharedExpense = {
-  id: number;
-  data: string;
-  descrizione: string;
-  importo: number;
-  pagatoDa: PersonKey;
-  divisoCon: PersonKey;
-  quotaPercentuale: number;
-  nota: string;
-};
-
 type AppData = {
   saldoAttuale: number;
   stipendioMedio: number;
@@ -57,293 +39,45 @@ type AppData = {
   obiettivo: number;
   dataObiettivo: string;
   sogliaSicurezza: number;
-  people: {
-    first: string;
-    second: string;
-  };
-  abbonamenti: Subscription[];
   movimenti: Movement[];
-  rimborsi: Refund[];
   viaggi: Trip[];
-  sharedExpenses: SharedExpense[];
 };
 
-type ForecastRow = {
-  key: string;
-  label: string;
-  short: string;
-  start: number;
-  salary: number;
-  movementExpenses: number;
-  movementIncome: number;
-  tripExpenses: number;
-  subscriptions: number;
-  refunds: number;
-  final: number;
-  margin: number;
-};
+const CATEGORY_OPTIONS = [
+  "Casa",
+  "Food",
+  "Trasporti",
+  "Abbonamenti",
+  "Salute",
+  "Tempo libero",
+  "Shopping",
+  "Viaggi",
+  "Animali",
+  "Altro",
+] as const;
 
-const translations = {
-  it: {
-    appName: "Finanze",
-    subtitle: "Budget personale, viaggi e previsione saldo",
-    dashboard: "Dashboard",
-    movements: "Movimenti",
-    trips: "Viaggi",
-    shared: "Gestione personale",
-    forecast: "Previsione",
-    balance: "Saldo attuale",
-    goal: "Obiettivo",
-    targetDate: "Data obiettivo",
-    targetEstimate: "Stima alla data obiettivo",
-    monthsLeft: "Mesi rimanenti",
-    progressGoal: "Progresso verso obiettivo",
-    currentMonth: "Mese corrente",
-    monthlyExpenses: "Spese del mese",
-    subscriptions: "Abbonamenti",
-    expectedRefunds: "Rimborsi attesi",
-    addQuickExpense: "Aggiungi spesa veloce",
-    quickPlaceholder: "pizza",
-    add: "Aggiungi",
-    recentMovements: "Movimenti recenti",
-    addMovement: "Aggiungi movimento",
-    description: "Descrizione",
-    category: "Categoria",
-    type: "Tipo",
-    expense: "Spesa",
-    income: "Entrata",
-    amount: "Importo",
-    note: "Nota",
-    optionalNotes: "Note facoltative",
-    date: "Data",
-    save: "Salva",
-    tripsTitle: "Addebiti viaggi",
-    addTrip: "Aggiungi viaggio",
-    tripName: "Viaggio",
-    tripItem: "Voce",
-    chargeDate: "Data addebito",
-    monthlyForecast: "Previsione mensile",
-    salary: "Stipendio medio",
-    safetyThreshold: "Soglia sicurezza",
-    finalBalance: "Saldo finale",
-    month: "Mese",
-    startBalance: "Saldo iniziale",
-    tripExpenses: "Viaggi",
-    normalExpenses: "Spese ordinarie",
-    margin: "Margine",
-    safe: "Sicuro",
-    risk: "Rischio",
-    refund: "Rimborsi",
-    received: "Ricevuto",
-    pending: "Da ricevere",
-    totalTrips: "Totale viaggi",
-    reset: "Reset dati",
-    necessary: "Necessaria",
-    notNecessary: "Non necessaria",
-    total: "Totale",
-    nextTrips: "Prossimi addebiti",
-    monthlySaving: "Risparmio mensile necessario",
-    light: "Chiaro",
-    dark: "Scuro",
-    theme: "Tema",
-    currentMonthIncome: "Entrate del mese",
-    currentMonthOut: "Uscite del mese",
-    quickHint: "Es: pizza 18",
-    noData: "Nessun dato",
-    settings: "Impostazioni",
-    currentBalance: "Saldo iniziale",
-    targetGoal: "Obiettivo risparmio",
-    avgSalary: "Stipendio medio",
-    salaryDay: "Giorno stipendio",
-    saveSettings: "Salva impostazioni",
-    expensesByCategory: "Spese per categoria",
-    noExpenseData: "Nessuna spesa da mostrare",
-    helpMiniTitle: "Come usare l'app",
-    helpMini1: "Inserisci saldo iniziale, stipendio e obiettivo.",
-    helpMini2: "Aggiungi spese rapide scrivendo ad esempio: pizza 18.",
-    helpMini3: "Aggiungi viaggi e controlla la previsione del saldo.",
-    addSharedExpense: "Aggiungi spesa condivisa",
-    paidBy: "Pagato da",
-    splitWith: "Diviso con",
-    splitPercent: "Quota %",
-    sharedSummary: "Riepilogo condivise",
-    netSharedBalance: "Saldo netto",
-    sharedRecent: "Spese condivise recenti",
-    owesTo: "deve a",
-    personOneName: "Nome persona 1",
-    personTwoName: "Nome persona 2",
-    shouldReceive: "deve ricevere",
-    monthAlertTitle: "Situazione di fine mese",
-    monthAlertOk: "Sei in linea per chiudere il mese.",
-    monthAlertWarn: "Attenzione: potresti chiudere il mese vicino alla soglia di sicurezza.",
-    monthAlertRisk: "Rischio: potresti chiudere il mese sotto la soglia di sicurezza.",
-    goalAlertTitle: "Situazione obiettivo",
-    goalAlertOk: "Sei in linea con il tuo obiettivo.",
-    goalAlertWarn: "Non sei in linea con l'obiettivo alla data scelta.",
-    gapToGoal: "Gap all'obiettivo",
-  },
-  en: {
-    appName: "Finance",
-    subtitle: "Personal budget, trips and balance forecast",
-    dashboard: "Dashboard",
-    movements: "Transactions",
-    trips: "Trips",
-    shared: "Shared expenses",
-    forecast: "Forecast",
-    balance: "Current balance",
-    goal: "Goal",
-    targetDate: "Target date",
-    targetEstimate: "Estimate at target date",
-    monthsLeft: "Months left",
-    progressGoal: "Progress to goal",
-    currentMonth: "Current month",
-    monthlyExpenses: "Monthly expenses",
-    subscriptions: "Subscriptions",
-    expectedRefunds: "Expected refunds",
-    addQuickExpense: "Quick add expense",
-    quickPlaceholder: "pizza",
-    add: "Add",
-    recentMovements: "Recent transactions",
-    addMovement: "Add transaction",
-    description: "Description",
-    category: "Category",
-    type: "Type",
-    expense: "Expense",
-    income: "Income",
-    amount: "Amount",
-    note: "Note",
-    optionalNotes: "Optional notes",
-    date: "Date",
-    save: "Save",
-    tripsTitle: "Trip charges",
-    addTrip: "Add trip",
-    tripName: "Trip",
-    tripItem: "Item",
-    chargeDate: "Charge date",
-    monthlyForecast: "Monthly forecast",
-    salary: "Average salary",
-    safetyThreshold: "Safety threshold",
-    finalBalance: "Final balance",
-    month: "Month",
-    startBalance: "Starting balance",
-    tripExpenses: "Trips",
-    normalExpenses: "Regular expenses",
-    margin: "Margin",
-    safe: "Safe",
-    risk: "Risk",
-    refund: "Refunds",
-    received: "Received",
-    pending: "Pending",
-    totalTrips: "Total trips",
-    reset: "Reset data",
-    necessary: "Necessary",
-    notNecessary: "Not necessary",
-    total: "Total",
-    nextTrips: "Upcoming charges",
-    monthlySaving: "Monthly saving needed",
-    light: "Light",
-    dark: "Dark",
-    theme: "Theme",
-    currentMonthIncome: "Current month income",
-    currentMonthOut: "Current month outflows",
-    quickHint: "Ex: pizza 18",
-    noData: "No data",
-    settings: "Settings",
-    currentBalance: "Starting balance",
-    targetGoal: "Savings goal",
-    avgSalary: "Average salary",
-    salaryDay: "Salary day",
-    saveSettings: "Save settings",
-    expensesByCategory: "Expenses by category",
-    noExpenseData: "No expenses to show",
-    helpMiniTitle: "How to use the app",
-    helpMini1: "Enter starting balance, average salary and savings goal.",
-    helpMini2: "Add quick expenses by typing for example: pizza 18.",
-    helpMini3: "Add trips and check the future balance forecast.",
-    addSharedExpense: "Add shared expense",
-    paidBy: "Paid by",
-    splitWith: "Split with",
-    splitPercent: "Share %",
-    sharedSummary: "Shared summary",
-    netSharedBalance: "Net balance",
-    sharedRecent: "Recent shared expenses",
-    owesTo: "owes",
-    personOneName: "Person 1 name",
-    personTwoName: "Person 2 name",
-    shouldReceive: "should receive",
-    monthAlertTitle: "End of month status",
-    monthAlertOk: "You are on track to close the month well.",
-    monthAlertWarn: "Warning: you may close the month near the safety threshold.",
-    monthAlertRisk: "Risk: you may close the month below the safety threshold.",
-    goalAlertTitle: "Goal status",
-    goalAlertOk: "You are on track for your goal.",
-    goalAlertWarn: "You are not on track for the selected target date.",
-    gapToGoal: "Gap to goal",
-  },
-} as const;
-
-function endOfCurrentMonthISO() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-}
-
-const initialData: AppData = {
-  saldoAttuale: 0,
-  stipendioMedio: 0,
-  giornoStipendio: 10,
-  obiettivo: 6000,
-  dataObiettivo: endOfCurrentMonthISO(),
-  sogliaSicurezza: 1000,
-  people: {
-    first: "Persona 1",
-    second: "Persona 2",
-  },
-  abbonamenti: [],
-  movimenti: [],
-  rimborsi: [],
-  viaggi: [],
-  sharedExpenses: [],
-};
-
-function detectLang(): Lang {
-  if (typeof navigator === "undefined") return "it";
-  return navigator.language?.startsWith("it") ? "it" : "en";
-}
-
-function detectTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  const saved = localStorage.getItem("fin-theme");
-  if (saved === "dark" || saved === "light") return saved;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function formatEuro(value: number): string {
+function formatEuro(value: number) {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-  }).format(Number(value) || 0);
+  }).format(value || 0);
 }
 
-function getMonthKey(dateString: string): string {
-  return String(dateString).slice(0, 7);
+function endOfCurrentMonthISO() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
 }
 
-function formatDate(dateString: string, lang: Lang): string {
+function formatDate(dateString: string) {
   const date = new Date(dateString);
-  return new Intl.DateTimeFormat(lang === "it" ? "it-IT" : "en-GB", {
+  if (Number.isNaN(date.getTime())) return dateString;
+  return new Intl.DateTimeFormat("it-IT", {
     day: "numeric",
     month: "short",
     year: "numeric",
   }).format(date);
-}
-
-function monthsBetweenInclusive(start: Date, end: Date) {
-  const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
-  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
-  const diff =
-    (endMonth.getFullYear() - startMonth.getFullYear()) * 12 +
-    (endMonth.getMonth() - startMonth.getMonth());
-  return Math.max(1, diff + 1);
 }
 
 function detectCategory(text: string): string {
@@ -384,45 +118,130 @@ function detectCategory(text: string): string {
     return "Abbonamenti";
   }
 
-  return "Varie";
+  if (t.includes("archie") || t.includes("veterinario") || t.includes("crocchette")) {
+    return "Animali";
+  }
+
+  if (t.includes("volo") || t.includes("hotel") || t.includes("airbnb")) {
+    return "Viaggi";
+  }
+
+  return "Altro";
 }
 
+function monthDiff(startDate: Date, targetDate: Date) {
+  return (
+    (targetDate.getFullYear() - startDate.getFullYear()) * 12 +
+    (targetDate.getMonth() - startDate.getMonth())
+  );
+}
+
+function occursInMonth(movement: Movement, monthDate: Date) {
+  const base = new Date(movement.data);
+  if (Number.isNaN(base.getTime())) return false;
+
+  const targetStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const baseStart = new Date(base.getFullYear(), base.getMonth(), 1);
+
+  if (targetStart < baseStart) return false;
+
+  if (movement.dataFine) {
+    const end = new Date(movement.dataFine);
+    if (!Number.isNaN(end.getTime())) {
+      const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+      if (targetStart > endMonth) return false;
+    }
+  }
+
+  if (movement.ricorrenza === "una_tantum") {
+    return (
+      movement.data.slice(0, 7) ===
+      `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`
+    );
+  }
+
+  const diff = monthDiff(baseStart, targetStart);
+
+  switch (movement.periodicita) {
+    case "giornaliera":
+      return true;
+    case "mensile":
+      return diff >= 0;
+    case "trimestrale":
+      return diff >= 0 && diff % 3 === 0;
+    case "semestrale":
+      return diff >= 0 && diff % 6 === 0;
+    case "annuale":
+      return diff >= 0 && diff % 12 === 0;
+    default:
+      return false;
+  }
+}
+
+function movementAmountForMonth(movement: Movement, monthDate: Date) {
+  if (!occursInMonth(movement, monthDate)) return 0;
+
+  if (movement.ricorrenza === "fissa" && movement.periodicita === "giornaliera") {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    return movement.importo * lastDay;
+  }
+
+  return movement.importo;
+}
+
+function getCategoryTotals(movements: Movement[]) {
+  const totals: Record<string, number> = {};
+
+  movements
+    .filter((m) => m.tipo === "spesa")
+    .forEach((m) => {
+      totals[m.categoria] = (totals[m.categoria] || 0) + m.importo;
+    });
+
+  return Object.entries(totals)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+const initialData: AppData = {
+  saldoAttuale: 0,
+  stipendioMedio: 0,
+  giornoStipendio: 10,
+  obiettivo: 6000,
+  dataObiettivo: endOfCurrentMonthISO(),
+  sogliaSicurezza: 1000,
+  movimenti: [],
+  viaggi: [],
+};
+
 function App() {
-  const [lang, setLang] = useState<Lang>(() => {
-    const saved = localStorage.getItem("fin-lang");
-    return saved === "it" || saved === "en" ? saved : detectLang();
-  });
-
-  const [theme, setTheme] = useState<Theme>(detectTheme);
-  const [tab, setTab] = useState<Tab>("dashboard");
-  const [showSettings, setShowSettings] = useState(false);
-
   const [data, setData] = useState<AppData>(() => {
-    const saved = localStorage.getItem("fin-data-ts");
-    return saved ? (JSON.parse(saved) as AppData) : initialData;
+    const saved = localStorage.getItem("fin-data");
+    return saved ? JSON.parse(saved) : initialData;
   });
-
-  const [quickInput, setQuickInput] = useState("");
-  const [quickNote, setQuickNote] = useState("");
 
   const [settingsDraft, setSettingsDraft] = useState({
     saldoAttuale: "",
     stipendioMedio: "",
     giornoStipendio: "10",
     obiettivo: "6000",
-    dataObiettivo: "",
-    firstPersonName: "",
-    secondPersonName: "",
+    dataObiettivo: endOfCurrentMonthISO(),
   });
+
+  const [quickInput, setQuickInput] = useState("");
 
   const [newMovement, setNewMovement] = useState({
     data: new Date().toISOString().slice(0, 10),
     descrizione: "",
-    categoria: "Varie",
+    categoria: "Altro",
     tipo: "spesa" as MovementType,
     importo: "",
-    necessaria: true,
     nota: "",
+    ricorrenza: "una_tantum" as RecurrenceType,
+    periodicita: "" as Frequency,
+    dataFine: "",
   });
 
   const [newTrip, setNewTrip] = useState({
@@ -432,34 +251,9 @@ function App() {
     dataAddebito: "",
   });
 
-  const [newSharedExpense, setNewSharedExpense] = useState({
-    data: new Date().toISOString().slice(0, 10),
-    descrizione: "",
-    importo: "",
-    pagatoDa: "first" as PersonKey,
-    divisoCon: "second" as PersonKey,
-    quotaPercentuale: "50",
-    nota: "",
-  });
-
-  const tr = translations[lang];
-
-  function personLabel(key: PersonKey) {
-    return data.people[key];
-  }
-
   useEffect(() => {
-    localStorage.setItem("fin-lang", lang);
-  }, [lang]);
-
-  useEffect(() => {
-    localStorage.setItem("fin-data-ts", JSON.stringify(data));
+    localStorage.setItem("fin-data", JSON.stringify(data));
   }, [data]);
-
-  useEffect(() => {
-    localStorage.setItem("fin-theme", theme);
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
 
   useEffect(() => {
     setSettingsDraft({
@@ -468,8 +262,6 @@ function App() {
       giornoStipendio: String(data.giornoStipendio || 10),
       obiettivo: String(data.obiettivo || 6000),
       dataObiettivo: data.dataObiettivo || endOfCurrentMonthISO(),
-      firstPersonName: data.people.first,
-      secondPersonName: data.people.second,
     });
   }, [
     data.saldoAttuale,
@@ -477,213 +269,74 @@ function App() {
     data.giornoStipendio,
     data.obiettivo,
     data.dataObiettivo,
-    data.people.first,
-    data.people.second,
   ]);
 
-  const totalSubscriptions = useMemo(
-    () => data.abbonamenti.reduce((sum, item) => sum + item.importo, 0),
-    [data.abbonamenti]
-  );
-
-  const totalRefunds = useMemo(
-    () => data.rimborsi.filter((r) => !r.ricevuto).reduce((sum, r) => sum + r.importo, 0),
-    [data.rimborsi]
-  );
-
-  const totalTrips = useMemo(
-    () => data.viaggi.reduce((sum, trip) => sum + trip.importo, 0),
-    [data.viaggi]
+  const totalIncome = useMemo(
+    () =>
+      data.movimenti
+        .filter((m) => m.tipo === "entrata")
+        .reduce((sum, m) => sum + m.importo, 0),
+    [data.movimenti]
   );
 
   const totalExpenses = useMemo(
-    () => data.movimenti.filter((m) => m.tipo === "spesa").reduce((sum, m) => sum + m.importo, 0),
+    () =>
+      data.movimenti
+        .filter((m) => m.tipo === "spesa")
+        .reduce((sum, m) => sum + m.importo, 0),
     [data.movimenti]
   );
 
-  const totalIncome = useMemo(
-    () => data.movimenti.filter((m) => m.tipo === "entrata").reduce((sum, m) => sum + m.importo, 0),
+  const saldoCalcolato = useMemo(() => {
+    return data.saldoAttuale + totalIncome - totalExpenses;
+  }, [data.saldoAttuale, totalIncome, totalExpenses]);
+
+  const currentMonthDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  const currentMonthExpenses = useMemo(
+    () =>
+      data.movimenti
+        .filter((m) => m.tipo === "spesa")
+        .reduce((sum, m) => sum + movementAmountForMonth(m, currentMonthDate), 0),
     [data.movimenti]
   );
 
-  const netEstimatedBalance = useMemo(() => {
-    return data.saldoAttuale + totalIncome - totalExpenses + totalRefunds - totalTrips;
-  }, [data.saldoAttuale, totalIncome, totalExpenses, totalRefunds, totalTrips]);
+  const currentMonthIncome = useMemo(
+    () =>
+      data.movimenti
+        .filter((m) => m.tipo === "entrata")
+        .reduce((sum, m) => sum + movementAmountForMonth(m, currentMonthDate), 0),
+    [data.movimenti]
+  );
+
+  const categoryTotals = useMemo(
+    () => getCategoryTotals(data.movimenti),
+    [data.movimenti]
+  );
+
+  const maxCategory = Math.max(...categoryTotals.map((c) => c.value), 1);
 
   const targetDate = useMemo(() => {
     const d = new Date(data.dataObiettivo || endOfCurrentMonthISO());
     return Number.isNaN(d.getTime()) ? new Date(endOfCurrentMonthISO()) : d;
   }, [data.dataObiettivo]);
 
-  const monthsLeft = useMemo(() => monthsBetweenInclusive(new Date(), targetDate), [targetDate]);
+  const monthsLeft = useMemo(() => {
+    const start = new Date();
+    const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    const diff =
+      (endMonth.getFullYear() - startMonth.getFullYear()) * 12 +
+      (endMonth.getMonth() - startMonth.getMonth());
+    return Math.max(1, diff + 1);
+  }, [targetDate]);
 
-  const targetForecastFinal = useMemo(() => {
-    const targetMonthKey = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}`;
-
-    const movementExpensesUntilTarget = data.movimenti
-      .filter((m) => m.tipo === "spesa" && getMonthKey(m.data) <= targetMonthKey)
-      .reduce((sum, m) => sum + m.importo, 0);
-
-    const movementIncomeUntilTarget = data.movimenti
-      .filter((m) => m.tipo === "entrata" && getMonthKey(m.data) <= targetMonthKey)
-      .reduce((sum, m) => sum + m.importo, 0);
-
-    const tripExpensesUntilTarget = data.viaggi
-      .filter((v) => getMonthKey(v.dataAddebito) <= targetMonthKey)
-      .reduce((sum, v) => sum + v.importo, 0);
-
-    const subscriptionsUntilTarget = totalSubscriptions * monthsLeft;
-
-    return (
-      data.saldoAttuale +
-      data.stipendioMedio * monthsLeft +
-      movementIncomeUntilTarget +
-      totalRefunds -
-      movementExpensesUntilTarget -
-      tripExpensesUntilTarget -
-      subscriptionsUntilTarget
-    );
-  }, [data, monthsLeft, targetDate, totalRefunds, totalSubscriptions]);
-
-  const gap = Math.max(0, data.obiettivo - targetForecastFinal);
-  const monthlySavingNeeded = gap / Math.max(1, monthsLeft);
-
-  const currentMonthKey = new Date().toISOString().slice(0, 7);
-
-  const currentMonthExpenses = useMemo(
-    () =>
-      data.movimenti
-        .filter((m) => getMonthKey(m.data) === currentMonthKey && m.tipo === "spesa")
-        .reduce((sum, m) => sum + m.importo, 0),
-    [data.movimenti, currentMonthKey]
-  );
-
-  const currentMonthIncome = useMemo(
-    () =>
-      data.movimenti
-        .filter((m) => getMonthKey(m.data) === currentMonthKey && m.tipo === "entrata")
-        .reduce((sum, m) => sum + m.importo, 0),
-    [data.movimenti, currentMonthKey]
-  );
-
-  const currentMonthOut = currentMonthExpenses + totalSubscriptions;
-
-  const forecastRows = useMemo<ForecastRow[]>(() => {
-    const baseMonth = new Date();
-    let running = data.saldoAttuale;
-
-    return Array.from({ length: 12 }).map((_, index) => {
-      const d = new Date(baseMonth.getFullYear(), baseMonth.getMonth() + index, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-      const movementExpenses = data.movimenti
-        .filter((m) => getMonthKey(m.data) === key && m.tipo === "spesa")
-        .reduce((sum, m) => sum + m.importo, 0);
-
-      const movementIncome = data.movimenti
-        .filter((m) => getMonthKey(m.data) === key && m.tipo === "entrata")
-        .reduce((sum, m) => sum + m.importo, 0);
-
-      const tripExpenses = data.viaggi
-        .filter((v) => getMonthKey(v.dataAddebito) === key)
-        .reduce((sum, v) => sum + v.importo, 0);
-
-      const refunds =
-        index === 0
-          ? data.rimborsi.filter((r) => !r.ricevuto).reduce((sum, r) => sum + r.importo, 0)
-          : 0;
-
-      const start = running;
-      const salary = data.stipendioMedio;
-
-      running =
-        running +
-        salary +
-        movementIncome +
-        refunds -
-        movementExpenses -
-        tripExpenses -
-        totalSubscriptions;
-
-      const monthName = new Intl.DateTimeFormat(lang === "it" ? "it-IT" : "en-GB", {
-        month: "long",
-        year: "numeric",
-      }).format(d);
-
-      const short = new Intl.DateTimeFormat("en-GB", { month: "short" }).format(d);
-
-      return {
-        key,
-        label: monthName.charAt(0).toUpperCase() + monthName.slice(1),
-        short,
-        start,
-        salary,
-        movementExpenses,
-        movementIncome,
-        tripExpenses,
-        subscriptions: totalSubscriptions,
-        refunds,
-        final: running,
-        margin: running - data.sogliaSicurezza,
-      };
-    });
-  }, [data, lang, totalSubscriptions]);
-
+  const gapToGoal = Math.max(0, data.obiettivo - saldoCalcolato);
+  const monthlySavingNeeded = gapToGoal / Math.max(1, monthsLeft);
   const progress = Math.min(
     100,
-    Math.max(0, data.obiettivo > 0 ? (targetForecastFinal / data.obiettivo) * 100 : 0)
+    Math.max(0, data.obiettivo > 0 ? (saldoCalcolato / data.obiettivo) * 100 : 0)
   );
-
-  const upcomingTrips = useMemo(
-    () =>
-      [...data.viaggi]
-        .sort((a, b) => +new Date(a.dataAddebito) - +new Date(b.dataAddebito))
-        .slice(0, 4),
-    [data.viaggi]
-  );
-
-  const sharedSummary = useMemo(() => {
-    let firstShouldReceive = 0;
-    let secondShouldReceive = 0;
-
-    data.sharedExpenses.forEach((item) => {
-      const quota = (item.importo * item.quotaPercentuale) / 100;
-
-      if (item.pagatoDa === "first" && item.divisoCon === "second") {
-        firstShouldReceive += quota;
-      }
-
-      if (item.pagatoDa === "second" && item.divisoCon === "first") {
-        secondShouldReceive += quota;
-      }
-    });
-
-    const net = firstShouldReceive - secondShouldReceive;
-
-    return {
-      firstShouldReceive,
-      secondShouldReceive,
-      net,
-    };
-  }, [data.sharedExpenses]);
-
-  const monthEndForecast = useMemo(() => {
-    const row = forecastRows.find((r) => r.key === currentMonthKey);
-    return row?.final ?? data.saldoAttuale;
-  }, [forecastRows, currentMonthKey, data.saldoAttuale]);
-
-  const daysToMonthEnd = useMemo(() => {
-    const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    return Math.max(0, diff);
-  }, []);
-
-  const showMonthAlert = daysToMonthEnd <= 7;
-
-  const monthAlertTone = monthEndForecast < data.sogliaSicurezza ? "risk" : monthEndForecast < data.sogliaSicurezza + 300 ? "warn" : "ok";
-
-  const goalAlertTone = targetForecastFinal >= data.obiettivo ? "ok" : "warn";
 
   function parseQuickExpense(text: string): { descrizione: string; importo: number } | null {
     const cleaned = text.trim();
@@ -706,11 +359,7 @@ function App() {
     const parsed = parseQuickExpense(quickInput);
 
     if (!parsed) {
-      alert(
-        lang === "it"
-          ? "Inserisci anche l'importo. Es: pizza 18"
-          : "Please add an amount too. Ex: pizza 18"
-      );
+      alert("Inserisci anche l'importo. Es: pizza 18");
       return;
     }
 
@@ -722,7 +371,10 @@ function App() {
       tipo: "spesa",
       importo: parsed.importo,
       necessaria: false,
-      nota: quickNote.trim(),
+      nota: "",
+      ricorrenza: "una_tantum",
+      periodicita: "",
+      dataFine: "",
     };
 
     setData((prev) => ({
@@ -731,11 +383,11 @@ function App() {
     }));
 
     setQuickInput("");
-    setQuickNote("");
   }
 
   function addMovement(e: React.FormEvent) {
     e.preventDefault();
+
     if (!newMovement.descrizione || !newMovement.importo) return;
 
     const movement: Movement = {
@@ -745,8 +397,11 @@ function App() {
       categoria: newMovement.categoria,
       tipo: newMovement.tipo,
       importo: Number(newMovement.importo),
-      necessaria: newMovement.necessaria,
+      necessaria: true,
       nota: newMovement.nota,
+      ricorrenza: newMovement.ricorrenza,
+      periodicita: newMovement.ricorrenza === "fissa" ? newMovement.periodicita : "",
+      dataFine: newMovement.ricorrenza === "fissa" ? newMovement.dataFine : "",
     };
 
     setData((prev) => ({
@@ -757,11 +412,13 @@ function App() {
     setNewMovement({
       data: new Date().toISOString().slice(0, 10),
       descrizione: "",
-      categoria: "Varie",
+      categoria: "Altro",
       tipo: "spesa",
       importo: "",
-      necessaria: true,
       nota: "",
+      ricorrenza: "una_tantum",
+      periodicita: "",
+      dataFine: "",
     });
   }
 
@@ -779,7 +436,7 @@ function App() {
 
     setData((prev) => ({
       ...prev,
-      viaggi: [...prev.viaggi, trip],
+      viaggi: [trip, ...prev.viaggi],
     }));
 
     setNewTrip({
@@ -788,55 +445,6 @@ function App() {
       importo: "",
       dataAddebito: "",
     });
-  }
-
-  function addSharedExpense(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newSharedExpense.descrizione || !newSharedExpense.importo) return;
-
-    if (newSharedExpense.pagatoDa === newSharedExpense.divisoCon) {
-      alert(
-        lang === "it"
-          ? "Pagato da e diviso con non possono essere la stessa persona"
-          : "Paid by and split with cannot be the same person"
-      );
-      return;
-    }
-
-    const sharedExpense: SharedExpense = {
-      id: Date.now(),
-      data: newSharedExpense.data,
-      descrizione: newSharedExpense.descrizione,
-      importo: Number(newSharedExpense.importo),
-      pagatoDa: newSharedExpense.pagatoDa,
-      divisoCon: newSharedExpense.divisoCon,
-      quotaPercentuale: Number(newSharedExpense.quotaPercentuale || 50),
-      nota: newSharedExpense.nota,
-    };
-
-    setData((prev) => ({
-      ...prev,
-      sharedExpenses: [sharedExpense, ...prev.sharedExpenses],
-    }));
-
-    setNewSharedExpense({
-      data: new Date().toISOString().slice(0, 10),
-      descrizione: "",
-      importo: "",
-      pagatoDa: "first",
-      divisoCon: "second",
-      quotaPercentuale: "50",
-      nota: "",
-    });
-  }
-
-  function toggleRefund(id: number) {
-    setData((prev) => ({
-      ...prev,
-      rimborsi: prev.rimborsi.map((r) =>
-        r.id === id ? { ...r, ricevuto: !r.ricevuto } : r
-      ),
-    }));
   }
 
   function saveSettings(e: React.FormEvent) {
@@ -849,733 +457,468 @@ function App() {
       giornoStipendio: Number(settingsDraft.giornoStipendio || 10),
       obiettivo: Number(settingsDraft.obiettivo || 6000),
       dataObiettivo: settingsDraft.dataObiettivo || endOfCurrentMonthISO(),
-      people: {
-        first: settingsDraft.firstPersonName.trim() || (lang === "it" ? "Persona 1" : "Person 1"),
-        second: settingsDraft.secondPersonName.trim() || (lang === "it" ? "Persona 2" : "Person 2"),
-      },
     }));
-
-    setShowSettings(false);
   }
 
   function resetAll() {
-    localStorage.removeItem("fin-data-ts");
+    localStorage.removeItem("fin-data");
     setData(initialData);
   }
 
+  const upcomingTrips = [...data.viaggi]
+    .sort((a, b) => +new Date(a.dataAddebito) - +new Date(b.dataAddebito))
+    .slice(0, 4);
+
   return (
-    <div className="app-shell">
-      <div className="app-container">
-        <div className="topbar">
+    <div className="app-container">
+      <div className="topbar">
+        <div>
+          <h1 className="page-title">Finanze</h1>
+          <p className="page-subtitle">Budget personale e previsione spese</p>
+        </div>
+        <div className="topbar-actions">
+          <button className="chip" onClick={resetAll}>
+            Reset dati
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2 className="section-title">Impostazioni iniziali</h2>
+
+        <form className="form-grid-4" onSubmit={saveSettings}>
           <div>
-            <h1 className="page-title">{tr.appName}</h1>
-            <p className="page-subtitle">{tr.subtitle}</p>
+            <label className="field-label">Saldo iniziale</label>
+            <input
+              className="input"
+              type="number"
+              step="0.01"
+              value={settingsDraft.saldoAttuale}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({ ...prev, saldoAttuale: e.target.value }))
+              }
+            />
           </div>
 
-          <div className="topbar-actions">
-            <button className="chip" onClick={() => setShowSettings(true)}>
-              ⚙️
+          <div>
+            <label className="field-label">Stipendio medio</label>
+            <input
+              className="input"
+              type="number"
+              step="0.01"
+              value={settingsDraft.stipendioMedio}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({ ...prev, stipendioMedio: e.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label className="field-label">Giorno stipendio</label>
+            <input
+              className="input"
+              type="number"
+              value={settingsDraft.giornoStipendio}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({ ...prev, giornoStipendio: e.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label className="field-label">Obiettivo risparmio</label>
+            <input
+              className="input"
+              type="number"
+              step="0.01"
+              value={settingsDraft.obiettivo}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label className="field-label">Data obiettivo</label>
+            <input
+              className="input"
+              type="date"
+              value={settingsDraft.dataObiettivo}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({ ...prev, dataObiettivo: e.target.value }))
+              }
+            />
+          </div>
+
+          <div className="form-grid-full">
+            <button className="primary-btn" type="submit">
+              Salva impostazioni
             </button>
-            <button
-              className={`chip ${lang === "it" ? "chip-active" : ""}`}
-              onClick={() => setLang("it")}
-            >
-              IT
-            </button>
-            <button
-              className={`chip ${lang === "en" ? "chip-active" : ""}`}
-              onClick={() => setLang("en")}
-            >
-              EN
-            </button>
-            <button
-              className="chip"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {tr.theme}: {theme === "dark" ? tr.light : tr.dark}
-            </button>
-            <button className="chip" onClick={resetAll}>
-              {tr.reset}
-            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2 className="section-title">Dashboard</h2>
+
+        <div className="grid grid-4">
+          <StatCard title="Saldo attuale" value={formatEuro(saldoCalcolato)} />
+          <StatCard title="Entrate" value={formatEuro(totalIncome)} />
+          <StatCard title="Spese" value={formatEuro(totalExpenses)} />
+          <StatCard title="Risparmio mensile necessario" value={formatEuro(monthlySavingNeeded)} />
+        </div>
+
+        <div className="grid grid-4 top-gap">
+          <StatCard title="Obiettivo" value={formatEuro(data.obiettivo)} />
+          <StatCard title="Gap all'obiettivo" value={formatEuro(gapToGoal)} />
+          <StatCard title="Mesi rimanenti" value={String(monthsLeft)} />
+          <StatCard title="Data obiettivo" value={formatDate(data.dataObiettivo)} />
+        </div>
+
+        <div className="top-gap">
+          <div className="row-between">
+            <div>
+              <h3 className="settings-help-title">Progresso verso obiettivo</h3>
+              <div className="muted">{formatEuro(data.obiettivo)}</div>
+            </div>
+            <span className="badge">{Math.round(progress)}%</span>
+          </div>
+
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-3">
+        <div className="card">
+          <h2 className="section-title">Mese corrente</h2>
+          <div className="mini-rows">
+            <MiniRow label="Entrate del mese" value={formatEuro(currentMonthIncome)} positive />
+            <MiniRow label="Spese del mese" value={formatEuro(currentMonthExpenses)} />
           </div>
         </div>
 
-        {showSettings && (
-          <div className="modal-overlay" onClick={() => setShowSettings(false)}>
-            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2 className="section-title">{tr.settings}</h2>
-                <button className="modal-close" onClick={() => setShowSettings(false)}>
-                  ✕
-                </button>
-              </div>
-
-              <form className="form-grid-4" onSubmit={saveSettings}>
-                <Field label={tr.currentBalance}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={settingsDraft.saldoAttuale}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, saldoAttuale: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.avgSalary}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={settingsDraft.stipendioMedio}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, stipendioMedio: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.salaryDay}>
-                  <input
-                    className="input"
-                    type="number"
-                    value={settingsDraft.giornoStipendio}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, giornoStipendio: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.targetGoal}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={settingsDraft.obiettivo}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.targetDate}>
-                  <input
-                    className="input"
-                    type="date"
-                    value={settingsDraft.dataObiettivo}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, dataObiettivo: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.personOneName}>
-                  <input
-                    className="input"
-                    value={settingsDraft.firstPersonName}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, firstPersonName: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <Field label={tr.personTwoName}>
-                  <input
-                    className="input"
-                    value={settingsDraft.secondPersonName}
-                    onChange={(e) =>
-                      setSettingsDraft((prev) => ({ ...prev, secondPersonName: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <div className="form-grid-full">
-                  <button className="primary-btn" type="submit">
-                    {tr.saveSettings}
-                  </button>
-                </div>
-              </form>
-
-              <div className="settings-help">
-                <h3 className="settings-help-title">{tr.helpMiniTitle}</h3>
-                <ul className="settings-help-list">
-                  <li>{tr.helpMini1}</li>
-                  <li>{tr.helpMini2}</li>
-                  <li>{tr.helpMini3}</li>
-                </ul>
-              </div>
-            </div>
+        <div className="card span-2">
+          <div className="row-between">
+            <h2 className="section-title">Prossimi viaggi</h2>
+            <span className="badge">{formatEuro(data.viaggi.reduce((s, v) => s + v.importo, 0))}</span>
           </div>
-        )}
 
-        {tab === "dashboard" && (
-          <div className="stack">
-            {showMonthAlert && (
-              <div className={`alert-card alert-${monthAlertTone}`}>
-                <div className="alert-title">{tr.monthAlertTitle}</div>
-                <div className="alert-text">
-                  {monthAlertTone === "risk"
-                    ? tr.monthAlertRisk
-                    : monthAlertTone === "warn"
-                    ? tr.monthAlertWarn
-                    : tr.monthAlertOk}
+          <div className="grid grid-2">
+            {upcomingTrips.length === 0 && <div className="muted">Nessun viaggio</div>}
+            {upcomingTrips.map((trip) => (
+              <div key={trip.id} className="list-item">
+                <div>
+                  <div className="item-title">{trip.viaggio}</div>
+                  <div className="muted">{trip.voce}</div>
+                  <div className="small-muted">{formatDate(trip.dataAddebito)}</div>
                 </div>
+                <div className="item-amount">{formatEuro(trip.importo)}</div>
               </div>
-            )}
-
-            <div className={`alert-card alert-${goalAlertTone}`}>
-              <div className="alert-title">{tr.goalAlertTitle}</div>
-              <div className="alert-text">
-                {goalAlertTone === "ok" ? tr.goalAlertOk : tr.goalAlertWarn}
-              </div>
-            </div>
-
-            <div className="grid grid-4">
-              <StatCard title={tr.balance} value={formatEuro(data.saldoAttuale)} />
-              <StatCard title={tr.goal} value={formatEuro(data.obiettivo)} />
-              <StatCard title={tr.targetEstimate} value={formatEuro(targetForecastFinal)} />
-              <StatCard title={tr.monthlySaving} value={formatEuro(monthlySavingNeeded)} />
-            </div>
-
-            <div className="grid grid-4">
-              <StatCard title={tr.targetDate} value={formatDate(data.dataObiettivo, lang)} />
-              <StatCard title={tr.monthsLeft} value={String(monthsLeft)} />
-              <StatCard title={tr.expectedRefunds} value={formatEuro(totalRefunds)} />
-              <StatCard title={tr.gapToGoal} value={formatEuro(gap)} />
-            </div>
-
-            <div className="grid grid-3">
-              <Card className="span-2">
-                <div className="row-between">
-                  <div>
-                    <h2 className="section-title">{tr.progressGoal}</h2>
-                    <p className="muted">{formatEuro(data.obiettivo)}</p>
-                  </div>
-                  <span className="badge">{Math.round(progress)}%</span>
-                </div>
-
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${progress}%` }} />
-                </div>
-
-                <div className="grid grid-3 small-gap top-gap">
-                  <MiniCard title={tr.monthlyExpenses} value={formatEuro(totalExpenses)} />
-                  <MiniCard title={tr.totalTrips} value={formatEuro(totalTrips)} />
-                  <MiniCard title={tr.finalBalance} value={formatEuro(netEstimatedBalance)} />
-                </div>
-              </Card>
-
-              <Card>
-                <h2 className="section-title">{tr.refund}</h2>
-                <div className="list">
-                  {data.rimborsi.length === 0 && <div className="muted">{tr.noData}</div>}
-                  {data.rimborsi.map((r) => (
-                    <div key={r.id} className="list-item">
-                      <div>
-                        <div className="item-title">{r.persona}</div>
-                        <div className="muted">{r.motivo}</div>
-                      </div>
-                      <div className="right">
-                        <div className="item-amount">{formatEuro(r.importo)}</div>
-                        <button
-                          className={`status-btn ${r.ricevuto ? "status-green" : "status-amber"}`}
-                          onClick={() => toggleRefund(r.id)}
-                        >
-                          {r.ricevuto ? tr.received : tr.pending}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </div>
-
-            <div className="grid grid-3">
-              <Card>
-                <h2 className="section-title">{tr.currentMonth}</h2>
-                <div className="mini-rows">
-                  <MiniRow label={tr.currentMonthIncome} value={formatEuro(currentMonthIncome)} positive />
-                  <MiniRow label={tr.monthlyExpenses} value={formatEuro(currentMonthExpenses)} />
-                  <MiniRow label={tr.subscriptions} value={formatEuro(totalSubscriptions)} />
-                  <MiniRow label={tr.currentMonthOut} value={formatEuro(currentMonthOut)} />
-                </div>
-              </Card>
-
-              <Card className="span-2">
-                <div className="row-between">
-                  <h2 className="section-title">{tr.nextTrips}</h2>
-                  <span className="badge">{formatEuro(totalTrips)}</span>
-                </div>
-
-                <div className="grid grid-2">
-                  {upcomingTrips.length === 0 && <div className="muted">{tr.noData}</div>}
-                  {upcomingTrips.map((trip) => (
-                    <div key={trip.id} className="list-item">
-                      <div>
-                        <div className="item-title">{trip.viaggio}</div>
-                        <div className="muted">{trip.voce}</div>
-                        <div className="small-muted">{formatDate(trip.dataAddebito, lang)}</div>
-                      </div>
-                      <div className="item-amount">{formatEuro(trip.importo)}</div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </div>
-
-            <Card>
-              <h2 className="section-title">{tr.addQuickExpense}</h2>
-              <form className="form-stack" onSubmit={handleQuickExpense}>
-                <input
-                  className="input"
-                  value={quickInput}
-                  onChange={(e) => setQuickInput(e.target.value)}
-                  placeholder={tr.quickPlaceholder}
-                />
-                <input
-                  className="input"
-                  value={quickNote}
-                  onChange={(e) => setQuickNote(e.target.value)}
-                  placeholder={tr.optionalNotes}
-                />
-                <button className="primary-btn" type="submit">
-                  {tr.add}
-                </button>
-              </form>
-              <p className="small-muted top-gap-sm">{tr.quickHint}</p>
-            </Card>
-
-            <Card>
-              <h2 className="section-title">{tr.expensesByCategory}</h2>
-              <CategoryChart movements={data.movimenti} emptyText={tr.noExpenseData} />
-            </Card>
+            ))}
           </div>
-        )}
+        </div>
+      </div>
 
-        {tab === "movements" && (
-          <div className="grid grid-3">
-            <Card>
-              <h2 className="section-title">{tr.addMovement}</h2>
+      <div className="card">
+        <h2 className="section-title">Aggiungi spesa veloce</h2>
+        <form className="form-stack" onSubmit={handleQuickExpense}>
+          <input
+            className="input"
+            value={quickInput}
+            onChange={(e) => setQuickInput(e.target.value)}
+            placeholder="Es: pizza 18"
+          />
+          <button className="primary-btn" type="submit">
+            Aggiungi
+          </button>
+        </form>
+      </div>
 
-              <form className="form-stack" onSubmit={addMovement}>
-                <Field label={tr.date}>
-                  <input
-                    className="input"
-                    type="date"
-                    value={newMovement.data}
-                    onChange={(e) => setNewMovement((prev) => ({ ...prev, data: e.target.value }))}
-                  />
-                </Field>
+      <div className="grid grid-3">
+        <div className="card">
+          <h2 className="section-title">Aggiungi movimento</h2>
 
-                <Field label={tr.description}>
-                  <input
-                    className="input"
-                    value={newMovement.descrizione}
-                    onChange={(e) => setNewMovement((prev) => ({ ...prev, descrizione: e.target.value }))}
-                  />
-                </Field>
+          <form className="form-stack" onSubmit={addMovement}>
+            <div>
+              <label className="field-label">Data</label>
+              <input
+                className="input"
+                type="date"
+                value={newMovement.data}
+                onChange={(e) =>
+                  setNewMovement((prev) => ({ ...prev, data: e.target.value }))
+                }
+              />
+            </div>
 
-                <Field label={tr.category}>
-                  <input
-                    className="input"
-                    value={newMovement.categoria}
-                    onChange={(e) => setNewMovement((prev) => ({ ...prev, categoria: e.target.value }))}
-                  />
-                </Field>
+            <div>
+              <label className="field-label">Descrizione</label>
+              <input
+                className="input"
+                value={newMovement.descrizione}
+                onChange={(e) =>
+                  setNewMovement((prev) => ({ ...prev, descrizione: e.target.value }))
+                }
+              />
+            </div>
 
-                <Field label={tr.type}>
+            <div>
+              <label className="field-label">Categoria</label>
+              <select
+                className="input"
+                value={newMovement.categoria}
+                onChange={(e) =>
+                  setNewMovement((prev) => ({ ...prev, categoria: e.target.value }))
+                }
+              >
+                {CATEGORY_OPTIONS.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="field-label">Tipo</label>
+              <select
+                className="input"
+                value={newMovement.tipo}
+                onChange={(e) =>
+                  setNewMovement((prev) => ({
+                    ...prev,
+                    tipo: e.target.value as MovementType,
+                  }))
+                }
+              >
+                <option value="spesa">Spesa</option>
+                <option value="entrata">Entrata</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="field-label">Importo</label>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                value={newMovement.importo}
+                onChange={(e) =>
+                  setNewMovement((prev) => ({ ...prev, importo: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <label className="field-label">Ricorrenza</label>
+              <select
+                className="input"
+                value={newMovement.ricorrenza}
+                onChange={(e) =>
+                  setNewMovement((prev) => ({
+                    ...prev,
+                    ricorrenza: e.target.value as RecurrenceType,
+                    periodicita: e.target.value === "fissa" ? prev.periodicita : "",
+                    dataFine: e.target.value === "fissa" ? prev.dataFine : "",
+                  }))
+                }
+              >
+                <option value="una_tantum">Una tantum</option>
+                <option value="fissa">Fissa</option>
+              </select>
+            </div>
+
+            {newMovement.ricorrenza === "fissa" && (
+              <>
+                <div>
+                  <label className="field-label">Periodicità</label>
                   <select
                     className="input"
-                    value={newMovement.tipo}
+                    value={newMovement.periodicita}
                     onChange={(e) =>
                       setNewMovement((prev) => ({
                         ...prev,
-                        tipo: e.target.value as MovementType,
+                        periodicita: e.target.value as Frequency,
                       }))
                     }
                   >
-                    <option value="spesa">{tr.expense}</option>
-                    <option value="entrata">{tr.income}</option>
+                    <option value="">Seleziona</option>
+                    <option value="giornaliera">Giornaliera</option>
+                    <option value="mensile">Mensile</option>
+                    <option value="trimestrale">Trimestrale</option>
+                    <option value="semestrale">Semestrale</option>
+                    <option value="annuale">Annuale</option>
                   </select>
-                </Field>
+                </div>
 
-                <Field label={tr.amount}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={newMovement.importo}
-                    onChange={(e) => setNewMovement((prev) => ({ ...prev, importo: e.target.value }))}
-                  />
-                </Field>
-
-                <Field label={tr.note}>
-                  <input
-                    className="input"
-                    value={newMovement.nota}
-                    onChange={(e) => setNewMovement((prev) => ({ ...prev, nota: e.target.value }))}
-                    placeholder={tr.optionalNotes}
-                  />
-                </Field>
-
-                <button className="primary-btn" type="submit">
-                  {tr.save}
-                </button>
-              </form>
-            </Card>
-
-            <Card className="span-2">
-              <h2 className="section-title">{tr.recentMovements}</h2>
-
-              <div className="list">
-                {data.movimenti.length === 0 && <div className="muted">{tr.noData}</div>}
-
-                {data.movimenti.map((m) => (
-                  <div key={m.id} className="list-item">
-                    <div>
-                      <div className="item-title">{m.descrizione}</div>
-                      <div className="muted">
-                        {formatDate(m.data, lang)} · {m.categoria}
-                      </div>
-                      {m.nota ? <div className="small-muted">{m.nota}</div> : null}
-                    </div>
-                    <div className="right">
-                      <div className={`item-amount ${m.tipo === "spesa" ? "amount-negative" : "amount-positive"}`}>
-                        {m.tipo === "spesa" ? "-" : "+"}
-                        {formatEuro(m.importo)}
-                      </div>
-                      <div className="small-muted">
-                        {m.necessaria ? tr.necessary : tr.notNecessary}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {tab === "trips" && (
-          <div className="grid grid-3">
-            <Card>
-              <h2 className="section-title">{tr.addTrip}</h2>
-
-              <form className="form-stack" onSubmit={addTrip}>
-                <Field label={tr.tripName}>
-                  <input
-                    className="input"
-                    value={newTrip.viaggio}
-                    onChange={(e) => setNewTrip((prev) => ({ ...prev, viaggio: e.target.value }))}
-                  />
-                </Field>
-
-                <Field label={tr.tripItem}>
-                  <input
-                    className="input"
-                    value={newTrip.voce}
-                    onChange={(e) => setNewTrip((prev) => ({ ...prev, voce: e.target.value }))}
-                  />
-                </Field>
-
-                <Field label={tr.amount}>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={newTrip.importo}
-                    onChange={(e) => setNewTrip((prev) => ({ ...prev, importo: e.target.value }))}
-                  />
-                </Field>
-
-                <Field label={tr.chargeDate}>
+                <div>
+                  <label className="field-label">Data fine (facoltativa)</label>
                   <input
                     className="input"
                     type="date"
-                    value={newTrip.dataAddebito}
-                    onChange={(e) => setNewTrip((prev) => ({ ...prev, dataAddebito: e.target.value }))}
-                  />
-                </Field>
-
-                <button className="primary-btn" type="submit">
-                  {tr.save}
-                </button>
-              </form>
-            </Card>
-
-            <Card className="span-2">
-              <div className="row-between">
-                <h2 className="section-title">{tr.tripsTitle}</h2>
-                <span className="badge">
-                  {tr.total}: {formatEuro(totalTrips)}
-                </span>
-              </div>
-
-              <div className="grid grid-2">
-                {data.viaggi.length === 0 && <div className="muted">{tr.noData}</div>}
-                {data.viaggi.map((trip) => (
-                  <div key={trip.id} className="list-item">
-                    <div>
-                      <div className="muted">{trip.viaggio}</div>
-                      <div className="item-title">{trip.voce}</div>
-                      <div className="small-muted">{formatDate(trip.dataAddebito, lang)}</div>
-                    </div>
-                    <div className="item-amount">{formatEuro(trip.importo)}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {tab === "shared" && (
-          <div className="stack">
-            <div className="grid grid-3">
-              <Card>
-                <h2 className="section-title">{tr.addSharedExpense}</h2>
-
-                <form className="form-stack" onSubmit={addSharedExpense}>
-                  <Field label={tr.date}>
-                    <input
-                      className="input"
-                      type="date"
-                      value={newSharedExpense.data}
-                      onChange={(e) =>
-                        setNewSharedExpense((prev) => ({ ...prev, data: e.target.value }))
-                      }
-                    />
-                  </Field>
-
-                  <Field label={tr.description}>
-                    <input
-                      className="input"
-                      value={newSharedExpense.descrizione}
-                      onChange={(e) =>
-                        setNewSharedExpense((prev) => ({ ...prev, descrizione: e.target.value }))
-                      }
-                    />
-                  </Field>
-
-                  <Field label={tr.amount}>
-                    <input
-                      className="input"
-                      type="number"
-                      step="0.01"
-                      value={newSharedExpense.importo}
-                      onChange={(e) =>
-                        setNewSharedExpense((prev) => ({ ...prev, importo: e.target.value }))
-                      }
-                    />
-                  </Field>
-
-                  <Field label={tr.paidBy}>
-                    <select
-                      className="input"
-                      value={newSharedExpense.pagatoDa}
-                      onChange={(e) =>
-                        setNewSharedExpense((prev) => ({
-                          ...prev,
-                          pagatoDa: e.target.value as PersonKey,
-                          divisoCon: e.target.value === "first" ? "second" : "first",
-                        }))
-                      }
-                    >
-                      <option value="first">{data.people.first}</option>
-                      <option value="second">{data.people.second}</option>
-                    </select>
-                  </Field>
-
-                  <Field label={tr.splitWith}>
-                    <select
-                      className="input"
-                      value={newSharedExpense.divisoCon}
-                      onChange={(e) =>
-                        setNewSharedExpense((prev) => ({
-                          ...prev,
-                          divisoCon: e.target.value as PersonKey,
-                        }))
-                      }
-                    >
-                      <option value="first">{data.people.first}</option>
-                      <option value="second">{data.people.second}</option>
-                    </select>
-                  </Field>
-
-                  <Field label={tr.splitPercent}>
-                    <input
-                      className="input"
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={newSharedExpense.quotaPercentuale}
-                      onChange={(e) =>
-                        setNewSharedExpense((prev) => ({
-                          ...prev,
-                          quotaPercentuale: e.target.value,
-                        }))
-                      }
-                    />
-                  </Field>
-
-                  <Field label={tr.note}>
-                    <input
-                      className="input"
-                      value={newSharedExpense.nota}
-                      onChange={(e) =>
-                        setNewSharedExpense((prev) => ({ ...prev, nota: e.target.value }))
-                      }
-                      placeholder={tr.optionalNotes}
-                    />
-                  </Field>
-
-                  <button className="primary-btn" type="submit">
-                    {tr.save}
-                  </button>
-                </form>
-              </Card>
-
-              <Card className="span-2">
-                <h2 className="section-title">{tr.sharedSummary}</h2>
-
-                <div className="grid grid-3">
-                  <MiniCard
-                    title={`${data.people.first} ${tr.shouldReceive}`}
-                    value={formatEuro(Math.max(0, sharedSummary.net))}
-                  />
-                  <MiniCard
-                    title={`${data.people.second} ${tr.shouldReceive}`}
-                    value={formatEuro(Math.max(0, -sharedSummary.net))}
-                  />
-                  <MiniCard
-                    title={tr.netSharedBalance}
-                    value={
-                      sharedSummary.net >= 0
-                        ? `${data.people.second} ${tr.owesTo} ${data.people.first} ${formatEuro(sharedSummary.net)}`
-                        : `${data.people.first} ${tr.owesTo} ${data.people.second} ${formatEuro(Math.abs(sharedSummary.net))}`
+                    value={newMovement.dataFine}
+                    onChange={(e) =>
+                      setNewMovement((prev) => ({ ...prev, dataFine: e.target.value }))
                     }
                   />
                 </div>
+              </>
+            )}
 
-                <div className="top-gap">
-                  <h3 className="settings-help-title">{tr.sharedRecent}</h3>
-                  <div className="list">
-                    {data.sharedExpenses.length === 0 && <div className="muted">{tr.noData}</div>}
+            <div>
+              <label className="field-label">Note facoltative</label>
+              <input
+                className="input"
+                value={newMovement.nota}
+                onChange={(e) =>
+                  setNewMovement((prev) => ({ ...prev, nota: e.target.value }))
+                }
+              />
+            </div>
 
-                    {data.sharedExpenses.map((item) => {
-                      const quota = (item.importo * item.quotaPercentuale) / 100;
-                      return (
-                        <div key={item.id} className="list-item">
-                          <div>
-                            <div className="item-title">{item.descrizione}</div>
-                            <div className="muted">
-                              {formatDate(item.data, lang)} · {personLabel(item.pagatoDa)} → {personLabel(item.divisoCon)}
-                            </div>
-                            <div className="small-muted">
-                              {tr.splitPercent}: {item.quotaPercentuale}%
-                            </div>
-                            {item.nota ? <div className="small-muted">{item.nota}</div> : null}
-                          </div>
+            <button className="primary-btn" type="submit">
+              Salva
+            </button>
+          </form>
+        </div>
 
-                          <div className="right">
-                            <div className="item-amount">{formatEuro(item.importo)}</div>
-                            <div className="small-muted">
-                              {personLabel(item.divisoCon)} {tr.owesTo} {personLabel(item.pagatoDa)}: {formatEuro(quota)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+        <div className="card span-2">
+          <h2 className="section-title">Movimenti recenti</h2>
+
+          <div className="list">
+            {data.movimenti.length === 0 && <div className="muted">Nessun movimento</div>}
+
+            {data.movimenti.map((m) => (
+              <div key={m.id} className="list-item">
+                <div>
+                  <div className="item-title">{m.descrizione}</div>
+                  <div className="muted">
+                    {formatDate(m.data)} · {m.categoria}
+                  </div>
+                  {m.ricorrenza === "fissa" && (
+                    <div className="small-muted">
+                      Ricorrente · {m.periodicita || "periodicità non impostata"}
+                    </div>
+                  )}
+                  {m.nota ? <div className="small-muted">{m.nota}</div> : null}
+                </div>
+
+                <div className="right">
+                  <div
+                    className={`item-amount ${
+                      m.tipo === "spesa" ? "amount-negative" : "amount-positive"
+                    }`}
+                  >
+                    {m.tipo === "spesa" ? "-" : "+"}
+                    {formatEuro(m.importo)}
                   </div>
                 </div>
-              </Card>
-            </div>
-          </div>
-        )}
-
-        {tab === "forecast" && (
-          <div className="stack">
-            <div className="grid grid-4">
-              <StatCard title={tr.salary} value={formatEuro(data.stipendioMedio)} />
-              <StatCard title={tr.safetyThreshold} value={formatEuro(data.sogliaSicurezza)} />
-              <StatCard title={tr.subscriptions} value={formatEuro(totalSubscriptions)} />
-              <StatCard title={tr.finalBalance} value={formatEuro(forecastRows[forecastRows.length - 1]?.final ?? 0)} />
-            </div>
-
-            <Card>
-              <h2 className="section-title">{tr.monthlyForecast}</h2>
-              <ForecastChart rows={forecastRows} />
-            </Card>
-
-            <Card>
-              <div className="table-wrap">
-                <table className="forecast-table">
-                  <thead>
-                    <tr>
-                      <th>{tr.month}</th>
-                      <th>{tr.startBalance}</th>
-                      <th>{tr.salary}</th>
-                      <th>{tr.normalExpenses}</th>
-                      <th>{tr.tripExpenses}</th>
-                      <th>{tr.subscriptions}</th>
-                      <th>{tr.finalBalance}</th>
-                      <th>{tr.margin}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {forecastRows.map((row) => (
-                      <tr key={row.key}>
-                        <td>{row.label}</td>
-                        <td>{formatEuro(row.start)}</td>
-                        <td className="amount-positive">+{formatEuro(row.salary)}</td>
-                        <td className="amount-negative">-{formatEuro(row.movementExpenses)}</td>
-                        <td className="amount-negative">-{formatEuro(row.tripExpenses)}</td>
-                        <td className="amount-negative">-{formatEuro(row.subscriptions)}</td>
-                        <td className="strong">{formatEuro(row.final)}</td>
-                        <td>
-                          <span className={`status-btn ${row.margin >= 0 ? "status-green" : "status-red"}`}>
-                            {row.margin >= 0 ? tr.safe : tr.risk}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
-            </Card>
+            ))}
           </div>
-        )}
+        </div>
       </div>
 
-      <nav className="bottom-nav five-cols">
-        {[
-          ["dashboard", tr.dashboard],
-          ["movements", tr.movements],
-          ["trips", tr.trips],
-          ["shared", tr.shared],
-          ["forecast", tr.forecast],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            className={`nav-btn ${tab === key ? "nav-btn-active" : ""}`}
-            onClick={() => setTab(key as Tab)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+      <div className="grid grid-3">
+        <div className="card">
+          <h2 className="section-title">Aggiungi viaggio</h2>
+
+          <form className="form-stack" onSubmit={addTrip}>
+            <div>
+              <label className="field-label">Viaggio</label>
+              <input
+                className="input"
+                value={newTrip.viaggio}
+                onChange={(e) =>
+                  setNewTrip((prev) => ({ ...prev, viaggio: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <label className="field-label">Voce</label>
+              <input
+                className="input"
+                value={newTrip.voce}
+                onChange={(e) =>
+                  setNewTrip((prev) => ({ ...prev, voce: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <label className="field-label">Importo</label>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                value={newTrip.importo}
+                onChange={(e) =>
+                  setNewTrip((prev) => ({ ...prev, importo: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <label className="field-label">Data addebito</label>
+              <input
+                className="input"
+                type="date"
+                value={newTrip.dataAddebito}
+                onChange={(e) =>
+                  setNewTrip((prev) => ({ ...prev, dataAddebito: e.target.value }))
+                }
+              />
+            </div>
+
+            <button className="primary-btn" type="submit">
+              Salva
+            </button>
+          </form>
+        </div>
+
+        <div className="card span-2">
+          <h2 className="section-title">Spese per categoria</h2>
+
+          {categoryTotals.length === 0 && <div className="muted">Nessuna spesa</div>}
+
+          {categoryTotals.map((item) => (
+            <div key={item.name} style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>{item.name}</span>
+                <span>{formatEuro(item.value)}</span>
+              </div>
+
+              <div
+                style={{
+                  height: 8,
+                  background: "var(--bg-soft-2)",
+                  borderRadius: 6,
+                  marginTop: 4,
+                  border: "1px solid var(--border)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${(item.value / maxCategory) * 100}%`,
+                    height: 8,
+                    background: "var(--primary)",
+                    borderRadius: 6,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
 function StatCard({ title, value }: { title: string; value: string }) {
-  return (
-    <Card>
-      <div className="muted">{title}</div>
-      <div className="stat-value">{value}</div>
-    </Card>
-  );
-}
-
-function MiniCard({ title, value }: { title: string; value: string }) {
   return (
     <div className="mini-card">
       <div className="muted">{title}</div>
@@ -1597,124 +940,6 @@ function MiniRow({
     <div className="mini-row">
       <div className="muted">{label}</div>
       <div className={positive ? "amount-positive strong" : "strong"}>{value}</div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="field-label">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Card({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return <div className={`card ${className}`.trim()}>{children}</div>;
-}
-
-function ForecastChart({ rows }: { rows: ForecastRow[] }) {
-  const width = 1200;
-  const height = 280;
-  const padding = 32;
-
-  const values = rows.map((r) => r.final);
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 1);
-  const range = Math.max(max - min, 1);
-
-  const points = rows.map((row, index) => {
-    const x = padding + (index * (width - padding * 2)) / Math.max(rows.length - 1, 1);
-    const y = height - padding - ((row.final - min) / range) * (height - padding * 2);
-    return { x, y, label: row.short, value: row.final };
-  });
-
-  const polylinePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
-
-  return (
-    <div className="chart-wrap">
-      <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg" role="img" aria-label="forecast chart">
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} className="chart-axis" />
-        <line x1={padding} y1={padding} x2={padding} y2={height - padding} className="chart-axis" />
-
-        {points.map((p) => (
-          <g key={p.label}>
-            <line x1={p.x} y1={padding} x2={p.x} y2={height - padding} className="chart-grid" />
-            <text x={p.x} y={height - 10} textAnchor="middle" className="chart-label">
-              {p.label}
-            </text>
-          </g>
-        ))}
-
-        <polyline points={polylinePoints} className="chart-line" />
-
-        {points.map((p) => (
-          <g key={`${p.label}-dot`}>
-            <circle cx={p.x} cy={p.y} r="5" className="chart-dot" />
-            <text x={p.x} y={p.y - 12} textAnchor="middle" className="chart-value">
-              {Math.round(p.value)}€
-            </text>
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-function CategoryChart({
-  movements,
-  emptyText,
-}: {
-  movements: Movement[];
-  emptyText: string;
-}) {
-  const expenses = movements.filter((m) => m.tipo === "spesa");
-
-  const grouped = expenses.reduce<Record<string, number>>((acc, m) => {
-    const key = m.categoria || "Varie";
-    acc[key] = (acc[key] || 0) + m.importo;
-    return acc;
-  }, {});
-
-  const data = Object.entries(grouped)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-
-  const max = Math.max(...data.map((d) => d.value), 1);
-
-  if (data.length === 0) {
-    return <div className="muted">{emptyText}</div>;
-  }
-
-  return (
-    <div className="category-chart">
-      {data.map((item) => (
-        <div key={item.name} className="category-row">
-          <div className="category-label-row">
-            <span>{item.name}</span>
-            <span>{formatEuro(item.value)}</span>
-          </div>
-          <div className="category-bar-track">
-            <div
-              className="category-bar-fill"
-              style={{ width: `${(item.value / max) * 100}%` }}
-            />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
