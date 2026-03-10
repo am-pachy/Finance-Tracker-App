@@ -516,7 +516,11 @@ function App() {
     const parsed = parseQuickExpense(quickInput);
 
     if (!parsed) {
-      alert(lang === "it" ? "Inserisci anche l'importo. Es: pizza 18" : "Please add an amount too. Ex: pizza 18");
+      alert(
+        lang === "it"
+          ? "Inserisci anche l'importo. Es: pizza 18"
+          : "Please add an amount too. Ex: pizza 18"
+      );
       return;
     }
 
@@ -615,6 +619,8 @@ function App() {
       giornoStipendio: Number(settingsDraft.giornoStipendio || 10),
       obiettivo: Number(settingsDraft.obiettivo || 6000),
     }));
+
+    setShowSettings(false);
   }
 
   function resetAll() {
@@ -632,7 +638,7 @@ function App() {
           </div>
 
           <div className="topbar-actions">
-            <button className="chip" onClick={() => setShowSettings((s) => !s)}>
+            <button className="chip" onClick={() => setShowSettings(true)}>
               ⚙️
             </button>
             <button
@@ -659,147 +665,81 @@ function App() {
           </div>
         </div>
 
-{showSettings && (
-  <div className="modal-overlay" onClick={() => setShowSettings(false)}>
-    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-      <div className="modal-header">
-        <h2 className="section-title">{tr.settings}</h2>
-        <button className="modal-close" onClick={() => setShowSettings(false)}>
-          ✕
-        </button>
-      </div>
-
-      <form className="form-grid-4" onSubmit={saveSettings}>
-        <Field label={tr.currentBalance}>
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            value={settingsDraft.saldoAttuale}
-            onChange={(e) =>
-              setSettingsDraft((prev) => ({ ...prev, saldoAttuale: e.target.value }))
-            }
-          />
-        </Field>
-
-        <Field label={tr.avgSalary}>
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            value={settingsDraft.stipendioMedio}
-            onChange={(e) =>
-              setSettingsDraft((prev) => ({ ...prev, stipendioMedio: e.target.value }))
-            }
-          />
-        </Field>
-
-        <Field label={tr.salaryDay}>
-          <input
-            className="input"
-            type="number"
-            value={settingsDraft.giornoStipendio}
-            onChange={(e) =>
-              setSettingsDraft((prev) => ({ ...prev, giornoStipendio: e.target.value }))
-            }
-          />
-        </Field>
-
-        <Field label={tr.targetGoal}>
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            value={settingsDraft.obiettivo}
-            onChange={(e) =>
-              setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
-            }
-          />
-        </Field>
-
-        <div className="form-grid-full">
-          <button className="primary-btn" type="submit">
-            {tr.saveSettings}
-          </button>
-        </div>
-      </form>
-
-      <div className="settings-help">
-        <h3 className="settings-help-title">{tr.helpMiniTitle}</h3>
-        <ul className="settings-help-list">
-          <li>{tr.helpMini1}</li>
-          <li>{tr.helpMini2}</li>
-          <li>{tr.helpMini3}</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-)}
-
-            <form className="form-grid-4" onSubmit={saveSettings}>
-              <Field label={tr.currentBalance}>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.01"
-                  value={settingsDraft.saldoAttuale}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({ ...prev, saldoAttuale: e.target.value }))
-                  }
-                />
-              </Field>
-
-              <Field label={tr.avgSalary}>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.01"
-                  value={settingsDraft.stipendioMedio}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({ ...prev, stipendioMedio: e.target.value }))
-                  }
-                />
-              </Field>
-
-              <Field label={tr.salaryDay}>
-                <input
-                  className="input"
-                  type="number"
-                  value={settingsDraft.giornoStipendio}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({ ...prev, giornoStipendio: e.target.value }))
-                  }
-                />
-              </Field>
-
-              <Field label={tr.targetGoal}>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.01"
-                  value={settingsDraft.obiettivo}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
-                  }
-                />
-              </Field>
-
-              <div className="form-grid-full">
-                <button className="primary-btn" type="submit">
-                  {tr.saveSettings}
+        {showSettings && (
+          <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2 className="section-title">{tr.settings}</h2>
+                <button className="modal-close" onClick={() => setShowSettings(false)}>
+                  ✕
                 </button>
               </div>
-            </form>
 
-            <div className="settings-help">
-              <h3 className="settings-help-title">{tr.helpMiniTitle}</h3>
-              <ul className="settings-help-list">
-                <li>{tr.helpMini1}</li>
-                <li>{tr.helpMini2}</li>
-                <li>{tr.helpMini3}</li>
-              </ul>
+              <form className="form-grid-4" onSubmit={saveSettings}>
+                <Field label={tr.currentBalance}>
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.01"
+                    value={settingsDraft.saldoAttuale}
+                    onChange={(e) =>
+                      setSettingsDraft((prev) => ({ ...prev, saldoAttuale: e.target.value }))
+                    }
+                  />
+                </Field>
+
+                <Field label={tr.avgSalary}>
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.01"
+                    value={settingsDraft.stipendioMedio}
+                    onChange={(e) =>
+                      setSettingsDraft((prev) => ({ ...prev, stipendioMedio: e.target.value }))
+                    }
+                  />
+                </Field>
+
+                <Field label={tr.salaryDay}>
+                  <input
+                    className="input"
+                    type="number"
+                    value={settingsDraft.giornoStipendio}
+                    onChange={(e) =>
+                      setSettingsDraft((prev) => ({ ...prev, giornoStipendio: e.target.value }))
+                    }
+                  />
+                </Field>
+
+                <Field label={tr.targetGoal}>
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.01"
+                    value={settingsDraft.obiettivo}
+                    onChange={(e) =>
+                      setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
+                    }
+                  />
+                </Field>
+
+                <div className="form-grid-full">
+                  <button className="primary-btn" type="submit">
+                    {tr.saveSettings}
+                  </button>
+                </div>
+              </form>
+
+              <div className="settings-help">
+                <h3 className="settings-help-title">{tr.helpMiniTitle}</h3>
+                <ul className="settings-help-list">
+                  <li>{tr.helpMini1}</li>
+                  <li>{tr.helpMini2}</li>
+                  <li>{tr.helpMini3}</li>
+                </ul>
+              </div>
             </div>
-          </Card>
+          </div>
         )}
 
         {tab === "dashboard" && (
