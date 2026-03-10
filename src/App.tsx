@@ -81,7 +81,7 @@ const translations = {
     subscriptions: "Abbonamenti",
     expectedRefunds: "Rimborsi attesi",
     addQuickExpense: "Aggiungi spesa veloce",
-    quickPlaceholder: "pizza 18",
+    quickPlaceholder: "pizza",
     add: "Aggiungi",
     recentMovements: "Movimenti recenti",
     addMovement: "Aggiungi movimento",
@@ -111,7 +111,7 @@ const translations = {
     margin: "Margine",
     safe: "Sicuro",
     risk: "Rischio",
-    refund: "Rimborso",
+    refund: "Rimborsi",
     received: "Ricevuto",
     pending: "Da ricevere",
     totalTrips: "Totale viaggi",
@@ -126,7 +126,7 @@ const translations = {
     theme: "Tema",
     currentMonthIncome: "Entrate del mese",
     currentMonthOut: "Uscite del mese",
-    quickHint: "Scrivi ad esempio: pizza 18",
+    quickHint: "Es: pizza 18",
     noData: "Nessun dato",
     demoTitle: "Configurazione iniziale",
     currentBalance: "Saldo iniziale",
@@ -134,6 +134,8 @@ const translations = {
     avgSalary: "Stipendio medio",
     salaryDay: "Giorno stipendio",
     saveSettings: "Salva impostazioni",
+    expensesByCategory: "Spese per categoria",
+    noExpenseData: "Nessuna spesa da mostrare",
   },
   en: {
     appName: "Finance",
@@ -150,7 +152,7 @@ const translations = {
     subscriptions: "Subscriptions",
     expectedRefunds: "Expected refunds",
     addQuickExpense: "Quick add expense",
-    quickPlaceholder: "pizza 18",
+    quickPlaceholder: "pizza",
     add: "Add",
     recentMovements: "Recent transactions",
     addMovement: "Add transaction",
@@ -180,7 +182,7 @@ const translations = {
     margin: "Margin",
     safe: "Safe",
     risk: "Risk",
-    refund: "Refund",
+    refund: "Refunds",
     received: "Received",
     pending: "Pending",
     totalTrips: "Total trips",
@@ -195,7 +197,7 @@ const translations = {
     theme: "Theme",
     currentMonthIncome: "Current month income",
     currentMonthOut: "Current month outflows",
-    quickHint: "Write for example: pizza 18",
+    quickHint: "Ex: pizza 18",
     noData: "No data",
     demoTitle: "Initial setup",
     currentBalance: "Starting balance",
@@ -203,6 +205,8 @@ const translations = {
     avgSalary: "Average salary",
     salaryDay: "Salary day",
     saveSettings: "Save settings",
+    expensesByCategory: "Expenses by category",
+    noExpenseData: "No expenses to show",
   },
 } as const;
 
@@ -248,6 +252,47 @@ function formatDate(dateString: string, lang: Lang): string {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function detectCategory(text: string): string {
+  const t = text.toLowerCase();
+
+  if (
+    t.includes("pizza") ||
+    t.includes("ristorante") ||
+    t.includes("bar") ||
+    t.includes("cena") ||
+    t.includes("pranzo") ||
+    t.includes("colazione") ||
+    t.includes("food") ||
+    t.includes("groceries") ||
+    t.includes("supermercato")
+  ) {
+    return "Food";
+  }
+
+  if (
+    t.includes("uber") ||
+    t.includes("taxi") ||
+    t.includes("bus") ||
+    t.includes("treno") ||
+    t.includes("metro") ||
+    t.includes("benzina") ||
+    t.includes("carburante")
+  ) {
+    return "Trasporti";
+  }
+
+  if (
+    t.includes("netflix") ||
+    t.includes("spotify") ||
+    t.includes("chatgpt") ||
+    t.includes("subscription")
+  ) {
+    return "Abbonamenti";
+  }
+
+  return "Varie";
 }
 
 function App() {
@@ -371,7 +416,7 @@ function App() {
     const baseMonth = new Date();
     let running = data.saldoAttuale;
 
-    return Array.from({ length: 9 }).map((_, index) => {
+    return Array.from({ length: 12 }).map((_, index) => {
       const d = new Date(baseMonth.getFullYear(), baseMonth.getMonth() + index, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
@@ -387,9 +432,10 @@ function App() {
         .filter((v) => getMonthKey(v.dataAddebito) === key)
         .reduce((sum, v) => sum + v.importo, 0);
 
-      const refunds = index === 0
-        ? data.rimborsi.filter((r) => !r.ricevuto).reduce((sum, r) => sum + r.importo, 0)
-        : 0;
+      const refunds =
+        index === 0
+          ? data.rimborsi.filter((r) => !r.ricevuto).reduce((sum, r) => sum + r.importo, 0)
+          : 0;
 
       const start = running;
       const salary = data.stipendioMedio;
@@ -427,10 +473,16 @@ function App() {
     });
   }, [data, lang, totalSubscriptions]);
 
-  const progress = Math.min(100, Math.max(0, data.obiettivo > 0 ? (data.saldoAttuale / data.obiettivo) * 100 : 0));
+  const progress = Math.min(
+    100,
+    Math.max(0, data.obiettivo > 0 ? (data.saldoAttuale / data.obiettivo) * 100 : 0)
+  );
 
   const upcomingTrips = useMemo(
-    () => [...data.viaggi].sort((a, b) => +new Date(a.dataAddebito) - +new Date(b.dataAddebito)).slice(0, 4),
+    () =>
+      [...data.viaggi]
+        .sort((a, b) => +new Date(a.dataAddebito) - +new Date(b.dataAddebito))
+        .slice(0, 4),
     [data.viaggi]
   );
 
@@ -453,13 +505,17 @@ function App() {
   function handleQuickExpense(e: React.FormEvent) {
     e.preventDefault();
     const parsed = parseQuickExpense(quickInput);
-    if (!parsed) return;
+
+    if (!parsed) {
+      alert(lang === "it" ? "Inserisci anche l'importo. Es: pizza 18" : "Please add an amount too. Ex: pizza 18");
+      return;
+    }
 
     const movement: Movement = {
       id: Date.now(),
       data: new Date().toISOString().slice(0, 10),
       descrizione: parsed.descrizione,
-      categoria: "Varie",
+      categoria: detectCategory(parsed.descrizione),
       tipo: "spesa",
       importo: parsed.importo,
       necessaria: false,
@@ -757,6 +813,14 @@ function App() {
                 </button>
               </form>
               <p className="small-muted top-gap-sm">{tr.quickHint}</p>
+            </Card>
+
+            <Card>
+              <h2 className="section-title">{tr.expensesByCategory}</h2>
+              <CategoryChart
+                movements={data.movimenti}
+                emptyText={tr.noExpenseData}
+              />
             </Card>
           </div>
         )}
@@ -1071,7 +1135,7 @@ function Card({
 }
 
 function ForecastChart({ rows }: { rows: ForecastRow[] }) {
-  const width = 1000;
+  const width = 1200;
   const height = 280;
   const padding = 32;
 
@@ -1114,6 +1178,51 @@ function ForecastChart({ rows }: { rows: ForecastRow[] }) {
           </g>
         ))}
       </svg>
+    </div>
+  );
+}
+
+function CategoryChart({
+  movements,
+  emptyText,
+}: {
+  movements: Movement[];
+  emptyText: string;
+}) {
+  const expenses = movements.filter((m) => m.tipo === "spesa");
+
+  const grouped = expenses.reduce<Record<string, number>>((acc, m) => {
+    const key = m.categoria || "Varie";
+    acc[key] = (acc[key] || 0) + m.importo;
+    return acc;
+  }, {});
+
+  const data = Object.entries(grouped)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  const max = Math.max(...data.map((d) => d.value), 1);
+
+  if (data.length === 0) {
+    return <div className="muted">{emptyText}</div>;
+  }
+
+  return (
+    <div className="category-chart">
+      {data.map((item) => (
+        <div key={item.name} className="category-row">
+          <div className="category-label-row">
+            <span>{item.name}</span>
+            <span>{formatEuro(item.value)}</span>
+          </div>
+          <div className="category-bar-track">
+            <div
+              className="category-bar-fill"
+              style={{ width: `${(item.value / max) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
