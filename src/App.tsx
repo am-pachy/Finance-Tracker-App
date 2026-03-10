@@ -206,18 +206,6 @@ const translations = {
   },
 } as const;
 
-const months = [
-  { key: "2026-03", short: "Mar", it: "Marzo 2026", en: "March 2026" },
-  { key: "2026-04", short: "Apr", it: "Aprile 2026", en: "April 2026" },
-  { key: "2026-05", short: "May", it: "Maggio 2026", en: "May 2026" },
-  { key: "2026-06", short: "Jun", it: "Giugno 2026", en: "June 2026" },
-  { key: "2026-07", short: "Jul", it: "Luglio 2026", en: "July 2026" },
-  { key: "2026-08", short: "Aug", it: "Agosto 2026", en: "August 2026" },
-  { key: "2026-09", short: "Sep", it: "Settembre 2026", en: "September 2026" },
-  { key: "2026-10", short: "Oct", it: "Ottobre 2026", en: "October 2026" },
-  { key: "2026-11", short: "Nov", it: "Novembre 2026", en: "November 2026" },
-] as const;
-
 const initialData: AppData = {
   saldoAttuale: 0,
   stipendioMedio: 0,
@@ -692,7 +680,7 @@ function App() {
               </Card>
 
               <Card>
-                <h2 className="section-title">{tr.refunds}</h2>
+                <h2 className="section-title">{tr.refund}</h2>
                 <div className="list">
                   {data.rimborsi.length === 0 && <div className="muted">{tr.noData}</div>}
                   {data.rimborsi.map((r) => (
