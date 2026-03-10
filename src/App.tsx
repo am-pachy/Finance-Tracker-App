@@ -4,7 +4,7 @@ type Lang = "it" | "en";
 type Theme = "light" | "dark";
 type Tab = "dashboard" | "movements" | "trips" | "shared" | "forecast";
 type MovementType = "spesa" | "entrata";
-type Person = "Anna" | "Mick";
+type PersonKey = "first" | "second";
 
 type Movement = {
   id: number;
@@ -44,8 +44,8 @@ type SharedExpense = {
   data: string;
   descrizione: string;
   importo: number;
-  pagatoDa: Person;
-  divisoCon: Person;
+  pagatoDa: PersonKey;
+  divisoCon: PersonKey;
   quotaPercentuale: number;
   nota: string;
 };
@@ -56,6 +56,10 @@ type AppData = {
   giornoStipendio: number;
   obiettivo: number;
   sogliaSicurezza: number;
+  people: {
+    first: string;
+    second: string;
+  };
   abbonamenti: Subscription[];
   movimenti: Movement[];
   rimborsi: Refund[];
@@ -85,7 +89,7 @@ const translations = {
     dashboard: "Dashboard",
     movements: "Movimenti",
     trips: "Viaggi",
-    shared: "Condivisioni",
+    shared: "Gestione personale",
     forecast: "Previsione",
     balance: "Saldo attuale",
     goal: "Obiettivo",
@@ -160,11 +164,14 @@ const translations = {
     splitWith: "Diviso con",
     splitPercent: "Quota %",
     sharedSummary: "Riepilogo condivise",
-    annaShouldReceive: "Anna deve ricevere",
-    mickShouldReceive: "Mick deve ricevere",
     netSharedBalance: "Saldo netto",
     sharedRecent: "Spese condivise recenti",
     owesTo: "deve a",
+    personOne: "Persona 1",
+    personTwo: "Persona 2",
+    personOneName: "Nome persona 1",
+    personTwoName: "Nome persona 2",
+    shouldReceive: "deve ricevere",
   },
   en: {
     appName: "Finance",
@@ -172,7 +179,7 @@ const translations = {
     dashboard: "Dashboard",
     movements: "Transactions",
     trips: "Trips",
-    shared: "Shared",
+    shared: "Shared expenses",
     forecast: "Forecast",
     balance: "Current balance",
     goal: "Goal",
@@ -247,11 +254,14 @@ const translations = {
     splitWith: "Split with",
     splitPercent: "Share %",
     sharedSummary: "Shared summary",
-    annaShouldReceive: "Anna should receive",
-    mickShouldReceive: "Mick should receive",
     netSharedBalance: "Net balance",
     sharedRecent: "Recent shared expenses",
     owesTo: "owes",
+    personOne: "Person 1",
+    personTwo: "Person 2",
+    personOneName: "Person 1 name",
+    personTwoName: "Person 2 name",
+    shouldReceive: "should receive",
   },
 } as const;
 
@@ -261,6 +271,10 @@ const initialData: AppData = {
   giornoStipendio: 10,
   obiettivo: 6000,
   sogliaSicurezza: 1000,
+  people: {
+    first: "Persona 1",
+    second: "Persona 2",
+  },
   abbonamenti: [],
   movimenti: [],
   rimborsi: [],
@@ -364,6 +378,8 @@ function App() {
     stipendioMedio: "",
     giornoStipendio: "10",
     obiettivo: "6000",
+    firstPersonName: "",
+    secondPersonName: "",
   });
 
   const [newMovement, setNewMovement] = useState({
@@ -387,13 +403,17 @@ function App() {
     data: new Date().toISOString().slice(0, 10),
     descrizione: "",
     importo: "",
-    pagatoDa: "Anna" as Person,
-    divisoCon: "Mick" as Person,
+    pagatoDa: "first" as PersonKey,
+    divisoCon: "second" as PersonKey,
     quotaPercentuale: "50",
     nota: "",
   });
 
   const tr = translations[lang];
+
+  function personLabel(key: PersonKey) {
+    return data.people[key];
+  }
 
   useEffect(() => {
     localStorage.setItem("fin-lang", lang);
@@ -414,8 +434,17 @@ function App() {
       stipendioMedio: String(data.stipendioMedio || ""),
       giornoStipendio: String(data.giornoStipendio || 10),
       obiettivo: String(data.obiettivo || 6000),
+      firstPersonName: data.people.first,
+      secondPersonName: data.people.second,
     });
-  }, [data.saldoAttuale, data.stipendioMedio, data.giornoStipendio, data.obiettivo]);
+  }, [
+    data.saldoAttuale,
+    data.stipendioMedio,
+    data.giornoStipendio,
+    data.obiettivo,
+    data.people.first,
+    data.people.second,
+  ]);
 
   const totalSubscriptions = useMemo(
     () => data.abbonamenti.reduce((sum, item) => sum + item.importo, 0),
@@ -544,26 +573,26 @@ function App() {
   );
 
   const sharedSummary = useMemo(() => {
-    let annaShouldReceive = 0;
-    let mickShouldReceive = 0;
+    let firstShouldReceive = 0;
+    let secondShouldReceive = 0;
 
     data.sharedExpenses.forEach((item) => {
       const quota = (item.importo * item.quotaPercentuale) / 100;
 
-      if (item.pagatoDa === "Anna" && item.divisoCon === "Mick") {
-        annaShouldReceive += quota;
+      if (item.pagatoDa === "first" && item.divisoCon === "second") {
+        firstShouldReceive += quota;
       }
 
-      if (item.pagatoDa === "Mick" && item.divisoCon === "Anna") {
-        mickShouldReceive += quota;
+      if (item.pagatoDa === "second" && item.divisoCon === "first") {
+        secondShouldReceive += quota;
       }
     });
 
-    const net = annaShouldReceive - mickShouldReceive;
+    const net = firstShouldReceive - secondShouldReceive;
 
     return {
-      annaShouldReceive,
-      mickShouldReceive,
+      firstShouldReceive,
+      secondShouldReceive,
       net,
     };
   }, [data.sharedExpenses]);
@@ -676,7 +705,15 @@ function App() {
   function addSharedExpense(e: React.FormEvent) {
     e.preventDefault();
     if (!newSharedExpense.descrizione || !newSharedExpense.importo) return;
-    if (newSharedExpense.pagatoDa === newSharedExpense.divisoCon) return;
+
+    if (newSharedExpense.pagatoDa === newSharedExpense.divisoCon) {
+      alert(
+        lang === "it"
+          ? "Pagato da e diviso con non possono essere la stessa persona"
+          : "Paid by and split with cannot be the same person"
+      );
+      return;
+    }
 
     const sharedExpense: SharedExpense = {
       id: Date.now(),
@@ -698,8 +735,8 @@ function App() {
       data: new Date().toISOString().slice(0, 10),
       descrizione: "",
       importo: "",
-      pagatoDa: "Anna",
-      divisoCon: "Mick",
+      pagatoDa: "first",
+      divisoCon: "second",
       quotaPercentuale: "50",
       nota: "",
     });
@@ -723,6 +760,10 @@ function App() {
       stipendioMedio: Number(settingsDraft.stipendioMedio || 0),
       giornoStipendio: Number(settingsDraft.giornoStipendio || 10),
       obiettivo: Number(settingsDraft.obiettivo || 6000),
+      people: {
+        first: settingsDraft.firstPersonName.trim() || (lang === "it" ? "Persona 1" : "Person 1"),
+        second: settingsDraft.secondPersonName.trim() || (lang === "it" ? "Persona 2" : "Person 2"),
+      },
     }));
 
     setShowSettings(false);
@@ -824,6 +865,26 @@ function App() {
                     value={settingsDraft.obiettivo}
                     onChange={(e) =>
                       setSettingsDraft((prev) => ({ ...prev, obiettivo: e.target.value }))
+                    }
+                  />
+                </Field>
+
+                <Field label={tr.personOneName}>
+                  <input
+                    className="input"
+                    value={settingsDraft.firstPersonName}
+                    onChange={(e) =>
+                      setSettingsDraft((prev) => ({ ...prev, firstPersonName: e.target.value }))
+                    }
+                  />
+                </Field>
+
+                <Field label={tr.personTwoName}>
+                  <input
+                    className="input"
+                    value={settingsDraft.secondPersonName}
+                    onChange={(e) =>
+                      setSettingsDraft((prev) => ({ ...prev, secondPersonName: e.target.value }))
                     }
                   />
                 </Field>
@@ -1186,13 +1247,13 @@ function App() {
                       onChange={(e) =>
                         setNewSharedExpense((prev) => ({
                           ...prev,
-                          pagatoDa: e.target.value as Person,
-                          divisoCon: e.target.value === "Anna" ? "Mick" : "Anna",
+                          pagatoDa: e.target.value as PersonKey,
+                          divisoCon: e.target.value === "first" ? "second" : "first",
                         }))
                       }
                     >
-                      <option value="Anna">Anna</option>
-                      <option value="Mick">Mick</option>
+                      <option value="first">{data.people.first}</option>
+                      <option value="second">{data.people.second}</option>
                     </select>
                   </Field>
 
@@ -1203,12 +1264,12 @@ function App() {
                       onChange={(e) =>
                         setNewSharedExpense((prev) => ({
                           ...prev,
-                          divisoCon: e.target.value as Person,
+                          divisoCon: e.target.value as PersonKey,
                         }))
                       }
                     >
-                      <option value="Anna">Anna</option>
-                      <option value="Mick">Mick</option>
+                      <option value="first">{data.people.first}</option>
+                      <option value="second">{data.people.second}</option>
                     </select>
                   </Field>
 
@@ -1250,19 +1311,19 @@ function App() {
 
                 <div className="grid grid-3">
                   <MiniCard
-                    title={tr.annaShouldReceive}
+                    title={`${data.people.first} ${tr.shouldReceive}`}
                     value={formatEuro(Math.max(0, sharedSummary.net))}
                   />
                   <MiniCard
-                    title={tr.mickShouldReceive}
+                    title={`${data.people.second} ${tr.shouldReceive}`}
                     value={formatEuro(Math.max(0, -sharedSummary.net))}
                   />
                   <MiniCard
                     title={tr.netSharedBalance}
                     value={
                       sharedSummary.net >= 0
-                        ? `Mick ${tr.owesTo} Anna ${formatEuro(sharedSummary.net)}`
-                        : `Anna ${tr.owesTo} Mick ${formatEuro(Math.abs(sharedSummary.net))}`
+                        ? `${data.people.second} ${tr.owesTo} ${data.people.first} ${formatEuro(sharedSummary.net)}`
+                        : `${data.people.first} ${tr.owesTo} ${data.people.second} ${formatEuro(Math.abs(sharedSummary.net))}`
                     }
                   />
                 </div>
@@ -1279,7 +1340,7 @@ function App() {
                           <div>
                             <div className="item-title">{item.descrizione}</div>
                             <div className="muted">
-                              {formatDate(item.data, lang)} · {item.pagatoDa} → {item.divisoCon}
+                              {formatDate(item.data, lang)} · {personLabel(item.pagatoDa)} → {personLabel(item.divisoCon)}
                             </div>
                             <div className="small-muted">
                               {tr.splitPercent}: {item.quotaPercentuale}%
@@ -1290,7 +1351,7 @@ function App() {
                           <div className="right">
                             <div className="item-amount">{formatEuro(item.importo)}</div>
                             <div className="small-muted">
-                              {item.divisoCon} {tr.owesTo} {item.pagatoDa}: {formatEuro(quota)}
+                              {personLabel(item.divisoCon)} {tr.owesTo} {personLabel(item.pagatoDa)}: {formatEuro(quota)}
                             </div>
                           </div>
                         </div>
@@ -1531,4 +1592,4 @@ function CategoryChart({
   );
 }
 
-export default App;
+export default App; => e adesso?
