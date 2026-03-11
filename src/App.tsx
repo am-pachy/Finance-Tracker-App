@@ -1,155 +1,119 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from './supabaseClient';
+import React, { useState, useEffect } from 'react';
+import './index.css';
 
 export default function App() {
   const [tab, setTab] = useState('dashboard');
-  const [session, setSession] = useState<any>(null);
-  const [profile, setProfile] = useState({ name: '', income: 0, fixedCosts: 0 });
-  const [movements, setMovements] = useState<any[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
-
-  // Inizializzazione Auth
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) loadData(session.user.id);
-    });
-  }, []);
-
-  async function loadData(userId: string) {
-    const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (prof) setProfile({ name: prof.full_name, income: prof.monthly_income, fixedCosts: prof.monthly_fixed_costs });
-    
-    const { data: movs } = await supabase.from('movements').select('*').eq('user_id', userId);
-    if (movs) setMovements(movs);
-  }
-
-  // --- LOGICA AI & CALCOLI ---
-  const formatEuro = (v: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v);
+  const [isLogged, setIsLogged] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   
-  const speseVariabiliTotali = movements.reduce((acc, m) => acc + m.amount, 0);
-  const risparmioTeoricoMensile = profile.income - profile.fixedCosts;
-  const margineRealeAttuale = risparmioTeoricoMensile - speseVariabiliTotali;
-  
-  const giorniMancanti = useMemo(() => {
-    const oggi = new Date();
-    const ultimoGiorno = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0).getDate();
-    return ultimoGiorno - oggi.getDate() || 1;
-  }, []);
+  // STATO SPESE (Inizialmente con esempi, poi collegato a Supabase)
+  const [expenses, setExpenses] = useState([
+    { id: 1, label: 'Spesa Carrefour', amount: 45.20, cat: '🍕', date: 'Oggi' },
+    { id: 2, label: 'Rifornimento Eni', amount: 60.00, cat: '🚗', date: 'Ieri' }
+  ]);
 
-  // --- SCANNER SCONTRINI ---
-  const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return;
-    setIsScanning(true);
-    // Simulazione AI Scan (GPT-4o / Mindee)
-    setTimeout(() => {
-      const newMov = { id: Date.now(), description: "Spesa AI Scan", amount: 25.50, type: 'uscita' };
-      setMovements([...movements, newMov]);
-      setIsScanning(false);
-      alert("Scanner AI: Spesa rilevata di 25,50€!");
-    }, 2000);
+  const [newExpense, setNewExpense] = useState({ label: '', amount: '', cat: '🍕' });
+
+  const addExpense = () => {
+    if (!newExpense.label || !newExpense.amount) return;
+    const item = {
+      id: Date.now(),
+      label: newExpense.label,
+      amount: parseFloat(newExpense.amount),
+      cat: newExpense.cat,
+      date: 'Ora'
+    };
+    setExpenses([item, ...expenses]);
+    setShowAddModal(false);
+    setNewExpense({ label: '', amount: '', cat: '🍕' });
   };
 
-  // 1. Schermata Onboarding
-  if (session && profile.income === 0) {
-    return (
-      <div className="app-container">
-        <div className="card" style={{maxWidth: '450px', margin: 'auto'}}>
-          <h2>Benvenuto su Finance Tracker App! 🚀</h2>
-          <p className="text-muted">Imposta i tuoi dati fissi per attivare l'AI Advisor.</p>
-          <div style={{marginTop: '20px'}}>
-            <label>Stipendio Mensile Medio</label>
-            <input type="number" id="inc" className="input-field" placeholder="es. 2000" />
-            <label style={{marginTop: '15px', display: 'block'}}>Spese Fisse (Affitto, Bollette...)</label>
-            <input type="number" id="fix" className="input-field" placeholder="es. 800" />
-            <button className="primary-btn" style={{marginTop: '20px'}} onClick={async () => {
-              const inc = +(document.getElementById('inc') as HTMLInputElement).value;
-              const fix = +(document.getElementById('fix') as HTMLInputElement).value;
-              await supabase.from('profiles').update({ monthly_income: inc, monthly_fixed_costs: fix }).eq('id', session.user.id);
-              setProfile({...profile, income: inc, fixedCosts: fix});
-            }}>Salva e Inizia</button>
-          </div>
-        </div>
+  if (!isLogged) return (
+    <div className="login-page">
+      <div className="login-card">
+        <h1 className="brand-title">Financial <br/> Tracker App</h1>
+        <button className="primary-btn" onClick={() => setIsLogged(true)}>Entra</button>
+        <p style={{ marginTop: '20px', fontSize: '10px', color: '#94a3b8' }}>
+          © 2026 - <b>Anna Marchetto</b> - Privacy Safe
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="app-container">
-      <header>
-        <div>
-          <h1 className="page-title">Finance Tracker App</h1>
-          <p className="text-muted">Analisi per <strong>{profile.name || 'Utente'}</strong></p>
-        </div>
-        <button className="secondary-btn" onClick={() => supabase.auth.signOut()}>Logout</button>
+      <header style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+        <h2 className="brand-title" style={{fontSize:'22px'}}>Tracker</h2>
+        <button onClick={() => setTab('settings')} className="nav-btn" style={{fontSize:'24px'}}>⚙️</button>
       </header>
 
       {tab === 'dashboard' && (
-        <div className="grid">
-          {/* AI ADVISOR BOX */}
-          <div className="card ai-card" style={{gridColumn: 'span 2'}}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px'}}>
-              <span style={{fontSize: '24px'}}>🤖</span>
-              <h3 style={{margin: 0}}>AI Advisor</h3>
-            </div>
-            <p style={{fontSize: '15px', opacity: 0.9}}>
-              Per questo mese, basandoci sul tuo budget fisso, puoi spendere ancora 
-              <strong style={{color: '#fbbf24'}}> {formatEuro(margineRealeAttuale / giorniMancanti)} al giorno</strong>.
-            </p>
-          </div>
-
-          {/* SCANNER SCONTRINI */}
-          <div className="scanner-box">
-            <h4>📸 Scanner AI</h4>
-            <input type="file" accept="image/*" capture="environment" id="file" hidden onChange={handleScan} />
-            <button className="primary-btn" style={{marginTop: '10px', background: 'var(--accent)'}} onClick={() => document.getElementById('file')?.click()}>
-              {isScanning ? "Scansione..." : "Scansiona Scontrino"}
-            </button>
+        <>
+          <div className="card">
+            <p style={{fontSize:'11px', fontWeight:800, color:'#64748b'}}>TOTALE SPESO</p>
+            <h1 style={{fontSize:'36px', color:'#dc2626'}}>
+              € {expenses.reduce((acc, curr) => acc + curr.amount, 0).toFixed(2)}
+            </h1>
           </div>
 
           <div className="card">
-            <h3>Saldo Residuo</h3>
-            <div style={{fontSize: '32px', fontWeight: 'bold', color: 'var(--accent)'}}>{formatEuro(margineRealeAttuale)}</div>
-            <p className="text-muted">Margine reale calcolato</p>
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}>
+              <h3>Ultime Spese</h3>
+              <button className="primary-btn" 
+                      style={{width:'auto', padding:'8px 15px', marginTop:0, fontSize:'12px'}}
+                      onClick={() => setShowAddModal(true)}>+ Aggiungi</button>
+            </div>
+
+            <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+              {expenses.map(ex => (
+                <div key={ex.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <div style={{display:'flex', gap:'12px', alignItems:'center'}}>
+                    <span style={{fontSize:'20px', background:'#f1f5f9', padding:'8px', borderRadius:'12px'}}>{ex.cat}</span>
+                    <div>
+                      <p style={{fontWeight:700, fontSize:'14px'}}>{ex.label}</p>
+                      <p style={{fontSize:'11px', color:'#64748b'}}>{ex.date}</p>
+                    </div>
+                  </div>
+                  <b style={{color:'#dc2626'}}>- € {ex.amount.toFixed(2)}</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* MODALE DI INSERIMENTO (Semplice overlay) */}
+      {showAddModal && (
+        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-end', zIndex:1000}}>
+          <div className="card" style={{width:'100%', marginBottom:0, borderRadius:'24px 24px 0 0', padding:'30px'}}>
+            <h3>Nuova Spesa</h3>
+            <select className="input-field" value={newExpense.cat} onChange={e => setNewExpense({...newExpense, cat: e.target.value})}>
+              <option value="🍕">Cibo 🍕</option>
+              <option value="🚗">Auto 🚗</option>
+              <option value="🏠">Casa 🏠</option>
+              <option value="🛍️">Shopping 🛍️</option>
+            </select>
+            <input type="text" placeholder="Cosa hai comprato?" className="input-field" 
+                   value={newExpense.label} onChange={e => setNewExpense({...newExpense, label: e.target.value})} />
+            <input type="number" placeholder="Importo €" className="input-field" 
+                   value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})} />
+            
+            <div style={{display:'flex', gap:'10px'}}>
+              <button className="primary-btn" onClick={addExpense}>Salva</button>
+              <button className="nav-btn" onClick={() => setShowAddModal(false)} style={{width:'100%'}}>Annulla</button>
+            </div>
           </div>
         </div>
       )}
 
-      {tab === 'forecast' && (
-        <div className="card">
-          <h3>🔮 Previsioni Avanzate</h3>
-          <p className="text-muted">Proiezione basata su {formatEuro(risparmioTeoricoMensile)} di risparmio teorico mensile.</p>
-          <table className="forecast-table">
-            <thead>
-              <tr>
-                <th>Mese</th>
-                <th>Risparmio Fisso</th>
-                <th>Extra (Reali)</th>
-                <th>Saldo Stimato</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[0, 1, 2, 3, 4, 5].map(i => {
-                const saldo = margineRealeAttuale + (risparmioTeoricoMensile * i);
-                return (
-                  <tr key={i}>
-                    <td>Mese +{i}</td>
-                    <td>{formatEuro(risparmioTeoricoMensile)}</td>
-                    <td>{i === 0 ? formatEuro(speseVariabiliTotali) : "--"}</td>
-                    <td style={{fontWeight: 'bold'}}>{formatEuro(saldo)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Tab Impostazioni (Codice precedente...) */}
+      {tab === 'settings' && (
+         <div className="card">
+           <h3>Impostazioni Anna Marchetto</h3>
+           <p style={{fontSize:'12px', marginTop:'10px'}}>Versione Alpha 1.0 - Compliance Mode ON</p>
+           <button className="primary-btn" style={{marginTop:'20px'}} onClick={() => setTab('dashboard')}>Indietro</button>
+         </div>
       )}
-
-      <nav className="bottom-nav">
-        <button className={`nav-btn ${tab === 'dashboard' ? 'active' : ''}`} onClick={() => setTab('dashboard')}>HOME</button>
-        <button className={`nav-btn ${tab === 'movements' ? 'active' : ''}`} onClick={() => setTab('movements')}>SPESE</button>
-        <button className={`nav-btn ${tab === 'forecast' ? 'active' : ''}`} onClick={() => setTab('forecast')}>FUTURO</button>
-      </nav>
     </div>
   );
 }
