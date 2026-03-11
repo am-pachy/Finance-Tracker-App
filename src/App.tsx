@@ -46,7 +46,7 @@ type SharedExpense = {
 };
 
 type AppData = {
-  saldoAttuale: number; // saldo iniziale/base
+  saldoAttuale: number;
   stipendioMedio: number;
   giornoStipendio: number;
   obiettivo: number;
@@ -63,6 +63,7 @@ type AppData = {
 
 type ForecastRow = {
   key: string;
+  year: string;
   label: string;
   short: string;
   start: number;
@@ -336,6 +337,12 @@ function App() {
     nota: "",
   });
 
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [movementSearch, setMovementSearch] = useState("");
+  const [movementYearFilter, setMovementYearFilter] = useState("all");
+  const [forecastYearFilter, setForecastYearFilter] = useState("all");
+
   useEffect(() => {
     localStorage.setItem("fin-data", JSON.stringify(data));
   }, [data]);
@@ -414,12 +421,63 @@ function App() {
     [data.sharedExpenses]
   );
 
-  const categoryTotals = useMemo(
-    () => getCategoryTotals(data.movimenti),
-    [data.movimenti]
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+
+    data.movimenti.forEach((m) => {
+      if (m.data) years.add(String(new Date(m.data).getFullYear()));
+    });
+
+    data.viaggi.forEach((v) => {
+      if (v.dataAddebito) years.add(String(new Date(v.dataAddebito).getFullYear()));
+    });
+
+    data.sharedExpenses.forEach((s) => {
+      if (s.data) years.add(String(new Date(s.data).getFullYear()));
+    });
+
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [data.movimenti, data.viaggi, data.sharedExpenses]);
+
+  const filteredMovementsForDashboard = useMemo(() => {
+    return data.movimenti.filter((m) => {
+      const yearOk =
+        selectedYear === "all" ||
+        String(new Date(m.data).getFullYear()) === selectedYear;
+
+      const categoryOk =
+        selectedCategories.length === 0 ||
+        selectedCategories.includes(m.categoria);
+
+      return yearOk && categoryOk;
+    });
+  }, [data.movimenti, selectedYear, selectedCategories]);
+
+  const filteredCategoryTotals = useMemo(
+    () => getCategoryTotals(filteredMovementsForDashboard),
+    [filteredMovementsForDashboard]
   );
 
-  const maxCategory = Math.max(...categoryTotals.map((c) => c.value), 1);
+  const filteredMaxCategory = Math.max(
+    ...filteredCategoryTotals.map((c) => c.value),
+    1
+  );
+
+  const filteredIncome = useMemo(
+    () =>
+      filteredMovementsForDashboard
+        .filter((m) => m.tipo === "entrata")
+        .reduce((sum, m) => sum + m.importo, 0),
+    [filteredMovementsForDashboard]
+  );
+
+  const filteredExpenses = useMemo(
+    () =>
+      filteredMovementsForDashboard
+        .filter((m) => m.tipo === "spesa")
+        .reduce((sum, m) => sum + m.importo, 0),
+    [filteredMovementsForDashboard]
+  );
 
   const targetDate = useMemo(() => {
     const d = new Date(data.dataObiettivo || endOfCurrentMonthISO());
@@ -484,6 +542,7 @@ function App() {
 
       return {
         key,
+        year: String(d.getFullYear()),
         label: label.charAt(0).toUpperCase() + label.slice(1),
         short,
         start,
@@ -498,9 +557,41 @@ function App() {
     });
   }, [data.movimenti, data.viaggi, data.sharedExpenses, data.stipendioMedio, data.sogliaSicurezza, saldoCalcolato]);
 
+  const filteredForecastRows = useMemo(() => {
+    return forecastRows.filter((row) => {
+      return forecastYearFilter === "all" || row.year === forecastYearFilter;
+    });
+  }, [forecastRows, forecastYearFilter]);
+
+  const filteredMovementsList = useMemo(() => {
+    const query = movementSearch.trim().toLowerCase();
+
+    return data.movimenti.filter((m) => {
+      const yearOk =
+        movementYearFilter === "all" ||
+        String(new Date(m.data).getFullYear()) === movementYearFilter;
+
+      const searchOk =
+        query.length === 0 ||
+        m.descrizione.toLowerCase().includes(query) ||
+        m.categoria.toLowerCase().includes(query) ||
+        m.nota.toLowerCase().includes(query);
+
+      return yearOk && searchOk;
+    });
+  }, [data.movimenti, movementSearch, movementYearFilter]);
+
   const upcomingTrips = [...data.viaggi]
     .sort((a, b) => +new Date(a.dataAddebito) - +new Date(b.dataAddebito))
     .slice(0, 4);
+
+  function toggleCategoryFilter(category: string) {
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category]
+    );
+  }
 
   function parseQuickExpense(text: string): { descrizione: string; importo: number } | null {
     const cleaned = text.trim();
@@ -666,6 +757,11 @@ function App() {
   function resetAll() {
     localStorage.removeItem("fin-data");
     setData(initialData);
+    setSelectedYear("all");
+    setSelectedCategories([]);
+    setMovementSearch("");
+    setMovementYearFilter("all");
+    setForecastYearFilter("all");
   }
 
   return (
@@ -809,12 +905,70 @@ function App() {
         {tab === "dashboard" && (
           <>
             <div className="card">
+              <div className="row-between">
+                <h2 className="section-title">Filtri dashboard</h2>
+                <button
+                  className="chip"
+                  onClick={() => {
+                    setSelectedYear("all");
+                    setSelectedCategories([]);
+                  }}
+                >
+                  Reset filtri
+                </button>
+              </div>
+
+              <div className="grid grid-3">
+                <div>
+                  <label className="field-label">Anno</label>
+                  <select
+                    className="input"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                  >
+                    <option value="all">Tutti</option>
+                    {availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="span-2">
+                  <label className="field-label">Categorie</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
+                    {CATEGORY_OPTIONS.map((category) => {
+                      const active = selectedCategories.includes(category);
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          className={`chip ${active ? "chip-active" : ""}`}
+                          onClick={() => toggleCategoryFilter(category)}
+                        >
+                          {category}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
               <h2 className="section-title">Dashboard</h2>
 
               <div className="grid grid-4">
                 <StatCard title="Saldo attuale" value={formatEuro(saldoCalcolato)} />
-                <StatCard title="Entrate" value={formatEuro(totalIncome)} />
-                <StatCard title="Spese" value={formatEuro(totalExpenses)} />
+                <StatCard title="Entrate filtrate" value={formatEuro(filteredIncome)} />
+                <StatCard title="Spese filtrate" value={formatEuro(filteredExpenses)} />
                 <StatCard title="Gestione personale" value={formatEuro(totalSharedImpact)} />
               </div>
 
@@ -892,9 +1046,9 @@ function App() {
             <div className="card">
               <h2 className="section-title">Spese per categoria</h2>
 
-              {categoryTotals.length === 0 && <div className="muted">Nessuna spesa</div>}
+              {filteredCategoryTotals.length === 0 && <div className="muted">Nessuna spesa</div>}
 
-              {categoryTotals.map((item) => (
+              {filteredCategoryTotals.map((item) => (
                 <div key={item.name} style={{ marginBottom: 12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>{item.name}</span>
@@ -913,7 +1067,7 @@ function App() {
                   >
                     <div
                       style={{
-                        width: `${(item.value / maxCategory) * 100}%`,
+                        width: `${(item.value / filteredMaxCategory) * 100}%`,
                         height: 8,
                         background: "var(--primary)",
                         borderRadius: 6,
@@ -1076,12 +1230,51 @@ function App() {
             </div>
 
             <div className="card span-2">
-              <h2 className="section-title">Movimenti recenti</h2>
+              <div className="row-between">
+                <h2 className="section-title">Movimenti recenti</h2>
+                <button
+                  className="chip"
+                  onClick={() => {
+                    setMovementSearch("");
+                    setMovementYearFilter("all");
+                  }}
+                >
+                  Reset filtri
+                </button>
+              </div>
 
-              <div className="list">
-                {data.movimenti.length === 0 && <div className="muted">Nessun movimento</div>}
+              <div className="grid grid-2">
+                <div>
+                  <label className="field-label">Cerca descrizione / categoria / nota</label>
+                  <input
+                    className="input"
+                    value={movementSearch}
+                    onChange={(e) => setMovementSearch(e.target.value)}
+                    placeholder="Es: pizza, netflix, casa..."
+                  />
+                </div>
 
-                {data.movimenti.map((m) => (
+                <div>
+                  <label className="field-label">Anno</label>
+                  <select
+                    className="input"
+                    value={movementYearFilter}
+                    onChange={(e) => setMovementYearFilter(e.target.value)}
+                  >
+                    <option value="all">Tutti</option>
+                    {availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="list top-gap">
+                {filteredMovementsList.length === 0 && <div className="muted">Nessun movimento</div>}
+
+                {filteredMovementsList.map((m) => (
                   <div key={m.id} className="list-item">
                     <div>
                       <div className="item-title">{m.descrizione}</div>
@@ -1339,6 +1532,31 @@ function App() {
 
         {tab === "forecast" && (
           <div className="stack">
+            <div className="card">
+              <div className="row-between">
+                <h2 className="section-title">Filtri previsione</h2>
+                <button className="chip" onClick={() => setForecastYearFilter("all")}>
+                  Reset filtri
+                </button>
+              </div>
+
+              <div style={{ maxWidth: 240 }}>
+                <label className="field-label">Anno</label>
+                <select
+                  className="input"
+                  value={forecastYearFilter}
+                  onChange={(e) => setForecastYearFilter(e.target.value)}
+                >
+                  <option value="all">Tutti</option>
+                  {Array.from(new Set(forecastRows.map((row) => row.year))).map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="grid grid-4">
               <StatCard title="Saldo attuale" value={formatEuro(saldoCalcolato)} />
               <StatCard title="Obiettivo" value={formatEuro(data.obiettivo)} />
@@ -1348,7 +1566,7 @@ function App() {
 
             <div className="card">
               <h2 className="section-title">Previsione finanziaria</h2>
-              <ForecastChart rows={forecastRows} />
+              <ForecastChart rows={filteredForecastRows} />
             </div>
 
             <div className="card">
@@ -1368,7 +1586,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {forecastRows.map((row) => (
+                    {filteredForecastRows.map((row) => (
                       <tr key={row.key}>
                         <td>{row.label}</td>
                         <td>{formatEuro(row.start)}</td>
@@ -1456,6 +1674,10 @@ function MiniRow({
 }
 
 function ForecastChart({ rows }: { rows: ForecastRow[] }) {
+  if (rows.length === 0) {
+    return <div className="muted">Nessun dato da mostrare</div>;
+  }
+
   const width = 1200;
   const height = 280;
   const padding = 32;
