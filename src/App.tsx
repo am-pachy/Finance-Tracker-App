@@ -769,7 +769,7 @@ function App() {
       <div className="app-container">
         <div className="topbar">
           <div>
-            <h1 className="page-title">Finanze</h1>
+            <h1 className="page-title">Finance Tracker App</h1>
             <p className="page-subtitle">Budget personale e previsione spese</p>
           </div>
 
