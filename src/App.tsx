@@ -969,7 +969,7 @@ function App() {
                 <StatCard title="Saldo attuale" value={formatEuro(saldoCalcolato)} />
                 <StatCard title="Entrate filtrate" value={formatEuro(filteredIncome)} />
                 <StatCard title="Spese filtrate" value={formatEuro(filteredExpenses)} />
-                <StatCard title="Gestione personale" value={formatEuro(totalSharedImpact)} />
+                <StatCard title="Gestione familiare" value={formatEuro(totalSharedImpact)} />
               </div>
 
               <div className="grid grid-4 top-gap">
@@ -1000,7 +1000,7 @@ function App() {
                 <div className="mini-rows">
                   <MiniRow label="Entrate del mese" value={formatEuro(currentMonthIncome)} positive />
                   <MiniRow label="Spese del mese" value={formatEuro(currentMonthExpenses)} />
-                  <MiniRow label="Gestione personale" value={formatEuro(currentMonthSharedImpact)} />
+                  <MiniRow label="Gestione familiare" value={formatEuro(currentMonthSharedImpact)} />
                 </div>
               </div>
 
@@ -1580,7 +1580,7 @@ function App() {
                       <th>Entrate</th>
                       <th>Spese</th>
                       <th>Viaggi</th>
-                      <th>Gestione personale</th>
+                      <th>Gestione familiare</th>
                       <th>Saldo finale</th>
                       <th>Margine</th>
                     </tr>
@@ -1634,7 +1634,7 @@ function App() {
           className={`nav-btn ${tab === "shared" ? "nav-btn-active" : ""}`}
           onClick={() => setTab("shared")}
         >
-          Gestione personale
+          Gestione familiare
         </button>
         <button
           className={`nav-btn ${tab === "forecast" ? "nav-btn-active" : ""}`}
