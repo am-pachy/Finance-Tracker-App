@@ -1,136 +1,158 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // useMemo è qui per farti felice!
 import { supabase } from './supabaseClient';
-import './index.css';
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [tab, setTab] = useState('dashboard');
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const [profile, setProfile] = useState({ income: 0, fixedCosts: 0 });
+  const [movements, setMovements] = useState<any[]>([]);
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newExpense, setNewExpense] = useState({ label: '', amount: '', cat: '🍕' });
+  const [isSaving, setIsSaving] = useState(false);
 
-  // 1. Inizializzazione Sessione e Caricamento Dati
+  // Il form per i tuoi movimenti (simpatico ma professionale!)
+  const [newMov, setNewMov] = useState({ desc: '', amount: '', cat: '🍕', type: 'uscita', nature: 'una_tantum' });
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchExpenses(session.user.id);
+      if (session) loadData(session.user.id);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchExpenses(session.user.id);
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
 
-  // 2. Leggi Spese dal DB
-  async function fetchExpenses(userId: string) {
-    const { data } = await supabase
-      .from('expenses')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    if (data) setExpenses(data);
+  async function loadData(userId: string) {
+    // Cerchiamo il tuo profilo con cautela
+    const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    
+    if (prof) {
+      setProfile({ income: prof.monthly_income || 0, fixedCosts: prof.monthly_fixed_costs || 0 });
+    } else {
+      setIsFirstLogin(true); // Benvenuta per la prima volta!
+    }
+
+    // Carichiamo i movimenti (usiamo la tabella corretta 'movements')
+    const { data: movs } = await supabase.from('movements').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if (movs) setMovements(movs);
   }
 
-  // 3. Salva Spesa sul DB
-  const addExpense = async () => {
-    if (!newExpense.label || !newExpense.amount || !session) return;
+  // LOGICA PREVISIONALE: Calcoliamo quanto puoi spendere senza stress
+  const { margineReale, budgetGiornaliero } = useMemo(() => {
+    const entrateExtra = movements.filter((m: any) => m.type === 'entrata').reduce((acc: number, m: any) => acc + m.amount, 0);
+    const fisseReg = movements.filter((m: any) => m.type === 'uscita' && m.nature === 'fissa').reduce((acc: number, m: any) => acc + m.amount, 0);
+    const usciteVariabili = movements.filter((m: any) => m.type === 'uscita' && m.nature === 'una_tantum').reduce((acc: number, m: any) => acc + m.amount, 0);
 
-    const { error } = await supabase.from('expenses').insert([{
-      user_id: session.user.id,
-      label: newExpense.label,
-      amount: parseFloat(newExpense.amount),
-      category: newExpense.cat
-    }]);
+    const residuo = (profile.income + entrateExtra) - (profile.fixedCosts + fisseReg) - usciteVariabili;
+    
+    const oggi = new Date();
+    const giorniRimanenti = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0).getDate() - oggi.getDate() + 1;
 
-    if (!error) {
-      fetchExpenses(session.user.id);
+    return { 
+      margineReale: residuo, 
+      budgetGiornaliero: residuo > 0 ? residuo / giorniRimanenti : 0 
+    };
+  }, [profile, movements]);
+
+  const formatEuro = (v: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v);
+
+  const handleAddMovement = async () => {
+    if (!newMov.desc || !newMov.amount) return;
+    setIsSaving(true);
+    
+    const { data, error } = await supabase.from('movements').insert([{ 
+      user_id: session.user.id, 
+      description: newMov.desc, 
+      amount: parseFloat(newMov.amount), 
+      type: newMov.type,
+      nature: newMov.nature,
+      category: newMov.type === 'uscita' ? newMov.cat : '💰'
+    }]).select();
+    
+    if (!error && data) {
+      setMovements([data[0], ...movements]);
       setShowAddModal(false);
-      setNewExpense({ label: '', amount: '', cat: '🍕' });
-    } else {
-      alert("Errore nel salvataggio: " + error.message);
+      setNewMov({ desc: '', amount: '', cat: '🍕', type: 'uscita', nature: 'una_tantum' });
     }
+    setIsSaving(false);
   };
 
   if (!session) return (
-    <div className="login-page">
-      <div className="login-card">
-        <h1 className="brand-title">Financial <br/> Tracker App</h1>
-        <button className="primary-btn" onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}>Accedi con Google</button>
-        <p style={{ marginTop: '20px', fontSize: '10px', color: '#94a3b8' }}>© 2026 - Anna Marchetto</p>
+    <div className="app-container" style={{display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh'}}>
+      <div className="card" style={{textAlign:'center', borderRadius:'40px', padding:'40px'}}>
+        <h1 style={{fontSize:32, marginBottom:10}}>Financial Tracker</h1>
+        <p style={{color:'#64748b', marginBottom:30}}>Bentornata Anna! ✨<br/>Pronta a far sorridere il portafoglio?</p>
+        <button className="primary-btn" onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}>Entra con Google</button>
       </div>
     </div>
   );
 
   return (
     <div className="app-container">
-      <header style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-        <h2 className="brand-title" style={{fontSize:'22px'}}>Tracker</h2>
-        <button onClick={() => setTab('settings')} className="nav-btn" style={{fontSize:'24px'}}>⚙️</button>
+      {isFirstLogin && (
+        <div className="modal-overlay">
+          <div className="card" style={{textAlign:'center'}}>
+            <h2>Piacere di conoscerti! 👋</h2>
+            <p style={{margin:'15px 0', color:'#64748b'}}>Impostiamo i tuoi numeri base per fare magie?</p>
+            <input type="number" placeholder="Stipendio Mensile 💰" className="input-field" onChange={e => setProfile({...profile, income: +e.target.value})} />
+            <input type="number" placeholder="Spese Fisse (Affitto, etc) 🏠" className="input-field" onChange={e => setProfile({...profile, fixedCosts: +e.target.value})} />
+            <button className="primary-btn" onClick={async () => {
+              await supabase.from('profiles').upsert({ id: session.user.id, monthly_income: profile.income, monthly_fixed_costs: profile.fixedCosts });
+              setIsFirstLogin(false);
+            }}>Si parte! 🚀</button>
+          </div>
+        </div>
+      )}
+
+      <header style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'25px'}}>
+        <div>
+          <h2 style={{fontWeight:900}}>Dashboard</h2>
+          <p style={{fontSize:'13px', color:'#64748b'}}>Ciao Anna, come andiamo oggi? ✨</p>
+        </div>
+        <span style={{fontSize:'24px', cursor:'pointer'}} onClick={() => supabase.auth.signOut()}>⚙️</span>
       </header>
 
       {tab === 'dashboard' && (
         <>
-          <div className="card">
-            <p style={{fontSize:'11px', fontWeight:800, color:'#64748b'}}>TOTALE SPESO</p>
-            <h1 style={{fontSize:'36px', color:'#dc2626'}}>
-              € {expenses.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
-            </h1>
+          <div className="card ai-card">
+            <h3 style={{fontSize:'15px'}}>🤖 AI Advisor dice:</h3>
+            <p style={{fontSize:'14px', marginTop:'10px'}}>Oggi puoi spendere fino a:<br/>
+              <strong style={{fontSize:'24px', color: '#1d4ed8'}}>{formatEuro(budgetGiornaliero)}</strong>
+            </p>
+            <p style={{fontSize:'11px', color:'#1e40af', marginTop:'8px', fontStyle:'italic'}}>
+              {budgetGiornaliero > 45 ? "Ottimo margine, goditi la giornata! 😉" : "Oggi meglio risparmiare per domani, Anna. ☕"}
+            </p>
           </div>
 
           <div className="card">
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-              <h3>Ultime Spese</h3>
-              <button className="primary-btn" style={{width:'auto', padding:'8px 15px', marginTop:0}} onClick={() => setShowAddModal(true)}>+</button>
-            </div>
-
-            <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-              {expenses.map(ex => (
-                <div key={ex.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                  <div style={{display:'flex', gap:'12px', alignItems:'center'}}>
-                    <span style={{fontSize:'20px', background:'#f1f5f9', padding:'8px', borderRadius:'12px'}}>{ex.category}</span>
-                    <div>
-                      <p style={{fontWeight:700, fontSize:'14px'}}>{ex.label}</p>
-                      <p style={{fontSize:'10px', color:'#64748b'}}>{new Date(ex.created_at).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <b style={{color:'#dc2626'}}>- € {ex.amount.toFixed(2)}</b>
-                </div>
-              ))}
-              {expenses.length === 0 && <p className="text-muted">Nessuna spesa inserita.</p>}
-            </div>
+            <p style={{fontSize:'12px', color:'#64748b', fontWeight:700}}>MARGINE REALE RIMASTO</p>
+            <h1 style={{fontSize:'42px', color: margineReale >= 0 ? '#1d4ed8' : '#dc2626'}}>{formatEuro(margineReale)}</h1>
           </div>
+
+          <button className="primary-btn" onClick={() => setShowAddModal(true)}>+ Registra un colpo di testa 💸</button>
         </>
       )}
 
-      {showAddModal && (
-        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-end', zIndex:1000}}>
-          <div className="card" style={{width:'100%', marginBottom:0, borderRadius:'24px 24px 0 0', padding:'30px'}}>
-            <h3>Nuova Spesa</h3>
-            <select className="input-field" value={newExpense.cat} onChange={e => setNewExpense({...newExpense, cat: e.target.value})}>
-              <option value="🍕">Cibo 🍕</option>
-              <option value="🚗">Auto 🚗</option>
-              <option value="🏠">Casa 🏠</option>
-              <option value="🛍️">Shopping 🛍️</option>
-            </select>
-            <input type="text" placeholder="Cosa?" className="input-field" value={newExpense.label} onChange={e => setNewExpense({...newExpense, label: e.target.value})} />
-            <input type="number" placeholder="Importo" className="input-field" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})} />
-            <button className="primary-btn" onClick={addExpense}>Salva Spesa</button>
-            <button className="nav-btn" onClick={() => setShowAddModal(false)} style={{width:'100%', marginTop:'10px'}}>Chiudi</button>
-          </div>
+      {tab === 'movements' && (
+        <div className="card">
+          <h3 style={{marginBottom:'15px'}}>📑 I tuoi movimenti</h3>
+          {movements.map(m => (
+            <div key={m.id} style={{display:'flex', justifyContent:'space-between', padding:'12px 0', borderBottom:'1px solid #f1f5f9'}}>
+              <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                <span>{m.category}</span>
+                <div>
+                  <p style={{fontWeight:700, fontSize:'14px'}}>{m.description}</p>
+                  <p style={{fontSize:'10px', color:'#94a3b8'}}>{m.nature === 'fissa' ? 'Costo Fisso 🗓️' : 'Solo per oggi ✌️'}</p>
+                </div>
+              </div>
+              <span style={{fontWeight:'bold', color: m.type === 'entrata' ? '#10b981' : '#dc2626'}}>
+                {m.type === 'entrata' ? '+' : '-'}{formatEuro(m.amount)}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
-      {tab === 'settings' && (
-        <div className="card">
-          <h3>Impostazioni Anna Marchetto</h3>
-          <p style={{fontSize:'12px', marginTop:'20px'}}>Disclaimer: Strumento di supporto al risparmio.</p>
-          <button className="primary-btn" style={{marginTop:'30px', background:'#dc2626'}} onClick={() => supabase.auth.signOut()}>Esci dall'Account</button>
-          <button className="nav-btn" onClick={() => setTab('dashboard')} style={{width:'100%', marginTop:'10px'}}>Torna Indietro</button>
-        </div>
-      )}
-    </div>
-  );
-}
+      {showAddModal && (
+        <div className="modal-overlay">
+          <div className="card" style={{width:'100%', maxWidth:'400px'}}>
+            <h3 style={{marginBottom:'15px'}}>Cos'è successo stavolta? 🤔</h3>
+            <div style={{display:'
