@@ -573,8 +573,7 @@ function SezioneMovimenti({
   const [categoriaSelezionata, setCategoriaSelezionata] = useState('Casa');
   const [importo, setImporto] = useState('');
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
-  const [periodicita, setPeriodicita] = useState('Fissa (Ricorrente)');
-  const [giornoMese, setGiornoMese] = useState('1');
+  const [periodicita, setPeriodicita] = useState<'FIXED' | 'ONE_TIME'>('FIXED');  const [giornoMese, setGiornoMese] = useState('1');
   const [saving, setSaving] = useState(false);
   const [messaggio, setMessaggio] = useState('');
 
@@ -704,10 +703,14 @@ function SezioneMovimenti({
       </div>
 
       <label style={s.labelIcon}>PERIODICITÀ</label>
-      <select style={s.input} value={periodicita} onChange={(e) => setPeriodicita(e.target.value)}>
-        <option>Fissa (Ricorrente)</option>
-        <option>Singola</option>
-      </select>
+      <select
+  style={s.input}
+  value={periodicita}
+  onChange={(e) => setPeriodicita(e.target.value as 'FIXED' | 'ONE_TIME')}
+>
+  <option value="FIXED">Fissa (Ricorrente)</option>
+  <option value="ONE_TIME">Singola</option>
+</select>
 
       <div
         style={{
