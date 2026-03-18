@@ -56,9 +56,6 @@ export function MainApp({ userId }: { userId: string }) {
     }
   };
 
-  const firstName = profile?.first_name || 'Anna';
-  const partnerName = profile?.partner_name || 'Michele';
-
   return (
     <div style={s.page}>
       <div style={s.shell}>
